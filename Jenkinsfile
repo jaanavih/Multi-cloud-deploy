@@ -238,6 +238,20 @@ node(POD_LABEL) {
                     ]]) {
                         if (params.ACTION == 'deploy') {
                             try {
+                                // Pre-deployment validation
+                                sh """
+                                echo "🔍 Pre-deployment validation..."
+                                echo "Checking if namespace '${params.NAMESPACE}' exists..."
+                                kubectl get namespace ${params.NAMESPACE} || {
+                                    echo "⚠️  Namespace '${params.NAMESPACE}' not found!"
+                                    echo "💡 Available namespaces:"
+                                    kubectl get namespaces
+                                    echo "🔧 Creating namespace '${params.NAMESPACE}'..."
+                                    kubectl create namespace ${params.NAMESPACE}
+                                    echo "✅ Namespace '${params.NAMESPACE}' created successfully"
+                                }
+                                """
+                                
                                 sh """
                                 echo "🚀 Applying Kubernetes manifests..."
                                 
@@ -273,15 +287,69 @@ node(POD_LABEL) {
                                 """
                             } catch (Exception e) {
                                 env.BUILD_STAGE = 'Deploy Application'
-                                echo "🚨 DEPLOYMENT FAILED in stage: ${env.BUILD_STAGE}"
-                                echo "Error: ${e.getMessage()}"
+                                
+                                // Comprehensive failure analysis
+                                echo """
+╔════════════════════════════════════════════════════════════════════════════════╗
+║                          🚨 BUILD FAILURE ANALYSIS 🚨                          ║
+╚════════════════════════════════════════════════════════════════════════════════╝
+
+🚨 DEPLOYMENT FAILED in stage: ${env.BUILD_STAGE}
+📋 Error Message: ${e.getMessage()}
+
+🔍 FAILURE ANALYSIS:
+   Build Status: FAILURE  
+   Failed Stage: Deploy Application
+   Namespace: ${params.NAMESPACE}
+   Target Cloud: ${env.TARGET_CLOUD}
+   Build Number: #${env.BUILD_NUMBER}
+
+📊 DETECTED ISSUES:"""
+                                
+                                // Analyze the error message for common patterns
+                                def errorMsg = e.getMessage().toLowerCase()
+                                if (errorMsg.contains('namespace') && errorMsg.contains('not found')) {
+                                    echo "   • Namespace Not Found - Target namespace '${params.NAMESPACE}' doesn't exist"
+                                } else if (errorMsg.contains('unauthorized') || errorMsg.contains('forbidden')) {
+                                    echo "   • Permission Denied - Insufficient RBAC permissions"
+                                } else if (errorMsg.contains('connection refused') || errorMsg.contains('timeout')) {
+                                    echo "   • Network/Connection Issue - Cannot reach Kubernetes API"
+                                } else if (errorMsg.contains('image') && errorMsg.contains('pull')) {
+                                    echo "   • Image Pull Error - Container image not accessible"
+                                } else {
+                                    echo "   • General Deployment Error - Check logs above for details"
+                                }
+                                
+                                echo """
+🚨 ROOT CAUSE: Namespace '${params.NAMESPACE}' not found in cluster
+
+💡 IMMEDIATE FIX:
+   1. Create the namespace: kubectl create namespace ${params.NAMESPACE}
+   2. Or use existing namespace (e.g., 'default')
+   3. Verify namespace exists: kubectl get namespaces
+
+🔧 TROUBLESHOOTING COMMANDS:
+   kubectl get namespaces                    # List all namespaces
+   kubectl create namespace ${params.NAMESPACE}     # Create missing namespace
+   kubectl get pods -n ${params.NAMESPACE} || echo "Namespace not found"
+
+🔗 BUILD DETAILS:
+   Build URL: ${env.BUILD_URL}
+   Workspace: ${env.WORKSPACE}
+   
+════════════════════════════════════════════════════════════════════════════════"""
+                                
                                 // Get additional debugging info
                                 sh """
-                                echo "🔍 Debugging deployment failure..."
-                                kubectl get events -n ${params.NAMESPACE} --sort-by='.lastTimestamp' | tail -20
-                                kubectl describe deployment hello-app -n ${params.NAMESPACE} || echo "Deployment not found"
-                                kubectl get pods -n ${params.NAMESPACE} -l app=hello-app || echo "No pods found"
+                                echo "🔍 Additional debugging information..."
+                                echo "Available namespaces:"
+                                kubectl get namespaces || echo "Cannot list namespaces"
+                                echo "Current kubectl context:"
+                                kubectl config current-context || echo "No context available"
+                                echo "Cluster info:"
+                                kubectl cluster-info || echo "Cannot get cluster info"
                                 """
+                                
                                 throw e
                             }
                         }
@@ -298,6 +366,20 @@ node(POD_LABEL) {
                     ]) {
                         if (params.ACTION == 'deploy') {
                             try {
+                                // Pre-deployment validation
+                                sh """
+                                echo "🔍 Pre-deployment validation..."
+                                echo "Checking if namespace '${params.NAMESPACE}' exists..."
+                                kubectl get namespace ${params.NAMESPACE} || {
+                                    echo "⚠️  Namespace '${params.NAMESPACE}' not found!"
+                                    echo "💡 Available namespaces:"
+                                    kubectl get namespaces
+                                    echo "🔧 Creating namespace '${params.NAMESPACE}'..."
+                                    kubectl create namespace ${params.NAMESPACE}
+                                    echo "✅ Namespace '${params.NAMESPACE}' created successfully"
+                                }
+                                """
+                                
                                 sh """
                                 echo "🚀 Applying Kubernetes manifests..."
                                 
@@ -333,15 +415,69 @@ node(POD_LABEL) {
                                 """
                             } catch (Exception e) {
                                 env.BUILD_STAGE = 'Deploy Application'
-                                echo "🚨 DEPLOYMENT FAILED in stage: ${env.BUILD_STAGE}"
-                                echo "Error: ${e.getMessage()}"
+                                
+                                // Comprehensive failure analysis
+                                echo """
+╔════════════════════════════════════════════════════════════════════════════════╗
+║                          🚨 BUILD FAILURE ANALYSIS 🚨                          ║
+╚════════════════════════════════════════════════════════════════════════════════╝
+
+🚨 DEPLOYMENT FAILED in stage: ${env.BUILD_STAGE}
+📋 Error Message: ${e.getMessage()}
+
+🔍 FAILURE ANALYSIS:
+   Build Status: FAILURE  
+   Failed Stage: Deploy Application
+   Namespace: ${params.NAMESPACE}
+   Target Cloud: ${env.TARGET_CLOUD}
+   Build Number: #${env.BUILD_NUMBER}
+
+📊 DETECTED ISSUES:"""
+                                
+                                // Analyze the error message for common patterns
+                                def errorMsg = e.getMessage().toLowerCase()
+                                if (errorMsg.contains('namespace') && errorMsg.contains('not found')) {
+                                    echo "   • Namespace Not Found - Target namespace '${params.NAMESPACE}' doesn't exist"
+                                } else if (errorMsg.contains('unauthorized') || errorMsg.contains('forbidden')) {
+                                    echo "   • Permission Denied - Insufficient RBAC permissions"
+                                } else if (errorMsg.contains('connection refused') || errorMsg.contains('timeout')) {
+                                    echo "   • Network/Connection Issue - Cannot reach Kubernetes API"
+                                } else if (errorMsg.contains('image') && errorMsg.contains('pull')) {
+                                    echo "   • Image Pull Error - Container image not accessible"
+                                } else {
+                                    echo "   • General Deployment Error - Check logs above for details"
+                                }
+                                
+                                echo """
+🚨 ROOT CAUSE: Namespace '${params.NAMESPACE}' not found in cluster
+
+💡 IMMEDIATE FIX:
+   1. Create the namespace: kubectl create namespace ${params.NAMESPACE}
+   2. Or use existing namespace (e.g., 'default')
+   3. Verify namespace exists: kubectl get namespaces
+
+🔧 TROUBLESHOOTING COMMANDS:
+   kubectl get namespaces                    # List all namespaces
+   kubectl create namespace ${params.NAMESPACE}     # Create missing namespace
+   kubectl get pods -n ${params.NAMESPACE} || echo "Namespace not found"
+
+🔗 BUILD DETAILS:
+   Build URL: ${env.BUILD_URL}
+   Workspace: ${env.WORKSPACE}
+   
+════════════════════════════════════════════════════════════════════════════════"""
+                                
                                 // Get additional debugging info
                                 sh """
-                                echo "🔍 Debugging deployment failure..."
-                                kubectl get events -n ${params.NAMESPACE} --sort-by='.lastTimestamp' | tail -20
-                                kubectl describe deployment hello-app -n ${params.NAMESPACE} || echo "Deployment not found"
-                                kubectl get pods -n ${params.NAMESPACE} -l app=hello-app || echo "No pods found"
+                                echo "🔍 Additional debugging information..."
+                                echo "Available namespaces:"
+                                kubectl get namespaces || echo "Cannot list namespaces"
+                                echo "Current kubectl context:"
+                                kubectl config current-context || echo "No context available"
+                                echo "Cluster info:"
+                                kubectl cluster-info || echo "Cannot get cluster info"
                                 """
+                                
                                 throw e
                             }
                         }
@@ -356,116 +492,4 @@ node(POD_LABEL) {
             }
         }
     }
-}
-
-// Post-build actions for error handling and failure reporting
-post {
-    always {
-        script {
-            if (currentBuild.result == 'FAILURE' || currentBuild.result == 'ABORTED') {
-                container('tools') {
-                    echo """
-╔════════════════════════════════════════════════════════════════════════════════╗
-║                          🚨 BUILD FAILURE ANALYSIS 🚨                          ║
-╚════════════════════════════════════════════════════════════════════════════════╝
-"""
-                    
-                    // Capture and analyze the build log for failure reasons
-                    def failureReasons = []
-                    def buildLog = currentBuild.rawBuild.getLog(500) // Get last 500 lines
-                    
-                    // Common failure patterns to search for
-                    def errorPatterns = [
-                        ['Authentication Failed', /(?i)(authentication.*failed|unauthorized|access.*denied|invalid.*credentials)/],
-                        ['Network/Connection Issue', /(?i)(connection.*refused|network.*unreachable|timeout|dial tcp.*connect)/],
-                        ['Kubernetes API Error', /(?i)(error.*server.*could.*not.*find|forbidden|the.*server.*could.*not.*find)/],
-                        ['Image Pull Error', /(?i)(imagepullbackoff|errimagepull|pull.*access.*denied)/],
-                        ['Resource Not Found', /(?i)(not.*found|does.*not.*exist|configmap.*not.*found)/],
-                        ['Namespace Mismatch', /(?i)(namespace.*does.*not.*match|namespace.*mismatch)/],
-                        ['Deployment Timeout', /(?i)(rollout.*timeout|deployment.*timeout|waiting.*timeout)/],
-                        ['Pod Startup Failure', /(?i)(containercreating.*failed|pod.*has.*unbound.*immediate)/],
-                        ['Permission Denied', /(?i)(permission.*denied|forbidden|access.*denied)/],
-                        ['Script Error', /(?i)(script.*returned.*exit.*code|command.*not.*found)/]
-                    ]
-                    
-                    buildLog.each { line ->
-                        errorPatterns.each { pattern ->
-                            if (line =~ pattern[1]) {
-                                if (!failureReasons.contains(pattern[0])) {
-                                    failureReasons.add(pattern[0])
-                                }
-                            }
-                        }
-                    }
-                    
-                    // Get the last few error lines from the build log
-                    def errorLines = buildLog.findAll { line ->
-                        line.contains('ERROR:') || line.contains('FAILED') || line.contains('error:') || 
-                        line.contains('Exception') || line.contains('+ exit') || line.contains('script returned exit code')
-                    }.takeRight(3)
-                    
-                    echo """
-🔍 FAILURE ANALYSIS:
-   Build Status: ${currentBuild.result}
-   Build Duration: ${currentBuild.durationString}
-   Failed Stage: ${env.STAGE_NAME ?: 'Unknown'}
-   
-📊 DETECTED ISSUES:"""
-                    
-                    if (failureReasons.isEmpty()) {
-                        echo "   • No specific patterns detected - check full build log for details"
-                    } else {
-                        failureReasons.each { reason ->
-                            echo "   • ${reason}"
-                        }
-                    }
-                    
-                    if (!errorLines.isEmpty()) {
-                        echo """
-🚨 RECENT ERROR MESSAGES:"""
-                        errorLines.each { line ->
-                            echo "   ${line.trim()}"
-                        }
-                    }
-                    
-                    echo """
-💡 TROUBLESHOOTING STEPS:
-   1. Check the full build log above for detailed error messages
-   2. Verify credentials and cluster access are properly configured
-   3. Ensure the target namespace exists and has proper permissions
-   4. Check if cluster nodes have sufficient resources
-   5. Validate network connectivity to the Kubernetes API
-   
-🔗 BUILD DETAILS:
-   Build Number: #${env.BUILD_NUMBER}
-   Build URL: ${env.BUILD_URL}
-   Workspace: ${env.WORKSPACE}
-
-════════════════════════════════════════════════════════════════════════════════"""
-                }
-            } else {
-                echo """
-✅ BUILD COMPLETED SUCCESSFULLY! 
-   Status: ${currentBuild.result ?: 'SUCCESS'}
-   Duration: ${currentBuild.durationString}
-   Build #${env.BUILD_NUMBER}
-"""
-            }
-        }
-    }
-    
-    failure {
-        script {
-            // Send additional notifications or perform cleanup if needed
-            echo "🚨 Build failed - failure handlers executed"
-        }
-    }
-    
-    success {
-        script {
-            echo "🎉 Build completed successfully - success handlers executed"
-        }
-    }
-}
-
 }
