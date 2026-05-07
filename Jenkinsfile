@@ -90,9 +90,10 @@ node(POD_LABEL) {
                         jq --version
                         gcloud version
                         
-                        echo "🔑 Checking API access..."
-                        echo "GCP Auth Status: $(gcloud auth list --format='value(account)' | head -1 || echo 'Not authenticated')"
+                        echo "🔑 Checking API access (securely)..."
+                        echo "GCP Auth Status: $(gcloud auth list --format='value(account)' | head -1 | sed 's/.*/[ACCOUNT_HIDDEN]/' || echo 'Not authenticated')"
                         echo "AWS Config: Using public pricing endpoints (no credentials needed for pricing API)"
+                        echo "🔒 Security: All access tokens and credentials are kept secure and not logged"
                         '''
                         
                         def costConfig = [

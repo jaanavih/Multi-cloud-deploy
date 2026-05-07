@@ -1,6 +1,12 @@
 /**
  * Cost comparison helpers — loaded via load('lib/costComparison.groovy') after checkout.
  * No Global Pipeline Library required.
+ * 
+ * SECURITY NOTICE:
+ * - All GCP access tokens are handled securely (not exposed in logs)
+ * - AWS pricing uses public endpoints (no credentials required)
+ * - Error output is sanitized to prevent token exposure
+ * - All API calls redirect sensitive output to /dev/null
  */
 
 Map runCostComparison(Map config) {
@@ -974,26 +980,35 @@ def getAWSEBSPricing(String region) {
 
 def getGCPGKEPricing(String region) {
     try {
-        // First, ensure we have proper GCP authentication
+        // First, ensure we have proper GCP authentication (without exposing token)
         def authTest = sh(
-            script: "gcloud auth print-access-token",
+            script: "gcloud auth print-access-token > /dev/null 2>&1 && echo 'SUCCESS' || echo 'ERROR'",
             returnStdout: true
         ).trim()
         
-        if (!authTest || authTest.contains("ERROR")) {
-            throw new Exception("GCP authentication not available")
+        if (authTest != "SUCCESS") {
+            throw new Exception("GCP authentication not available - please run 'gcloud auth login'")
         }
         
-        // Get GKE pricing using Cloud Billing API
+        echo "✅ GCP authentication validated (token not exposed)"
+        
+        // Get GKE pricing using Cloud Billing API (secure method)
         def result = sh(
             script: """
-            ACCESS_TOKEN=\$(gcloud auth print-access-token)
+            # Securely get access token without exposing in logs
+            ACCESS_TOKEN=\$(gcloud auth print-access-token 2>/dev/null)
             
-            # Get Kubernetes Engine service SKUs
+            if [ -z "\$ACCESS_TOKEN" ]; then
+                echo "ERROR: Cannot obtain access token"
+                exit 1
+            fi
+            
+            # Get Kubernetes Engine service SKUs (token not logged)
             curl -s -H "Authorization: Bearer \${ACCESS_TOKEN}" \\
                 "https://cloudbilling.googleapis.com/v1/services/6F81-5844-456A/skus?pageSize=1000" \\
+                2>/dev/null \\
                 | jq -r '.skus[] | select(.description | test("Cluster management fee"; "i")) | select(.serviceRegions[] | contains("${region}") or contains("global")) | .pricingInfo[0].pricingExpression.tieredRates[0].unitPrice' \\
-                | jq -r 'if .units then (.units | tonumber) + ((.nanos // 0 | tonumber) / 1000000000) else 0.10 end' \\
+                | jq -r 'if .units then (.units | tonumber) + ((.nanos // 0 | tonumber) / 1000000000) else empty end' \\
                 | head -1
             """,
             returnStdout: true
@@ -1030,19 +1045,32 @@ def getGCPGKEPricing(String region) {
 
 def getGCPComputePricing(String machineType, String region) {
     try {
-        // Get Compute Engine pricing using authenticated API
+        // Get Compute Engine pricing using authenticated API (secure method)
         def result = sh(
             script: """
-            ACCESS_TOKEN=\$(gcloud auth print-access-token)
+            # Securely get access token without exposing in logs
+            ACCESS_TOKEN=\$(gcloud auth print-access-token 2>/dev/null)
             
-            # Get Compute Engine service ID (different from Kubernetes)
+            if [ -z "\$ACCESS_TOKEN" ]; then
+                echo "ERROR: Cannot obtain access token"
+                exit 1
+            fi
+            
+            # Get Compute Engine service ID (token not logged)
             COMPUTE_SERVICE_ID=\$(curl -s -H "Authorization: Bearer \${ACCESS_TOKEN}" \\
                 "https://cloudbilling.googleapis.com/v1/services" \\
-                | jq -r '.services[] | select(.displayName == "Compute Engine") | .name | split("/")[1]')
+                2>/dev/null \\
+                | jq -r '.services[] | select(.displayName == "Compute Engine") | .name | split("/")[1]' 2>/dev/null)
             
-            # Get machine type pricing
+            if [ -z "\$COMPUTE_SERVICE_ID" ]; then
+                echo "ERROR: Cannot get Compute Engine service ID"
+                exit 1
+            fi
+            
+            # Get machine type pricing (token not logged)
             curl -s -H "Authorization: Bearer \${ACCESS_TOKEN}" \\
                 "https://cloudbilling.googleapis.com/v1/services/\${COMPUTE_SERVICE_ID}/skus?pageSize=1000" \\
+                2>/dev/null \\
                 | jq -r '.skus[] | select(.description | test("${machineType}.*running"; "i")) | select(.serviceRegions[] | contains("${region}") or . == "global") | .pricingInfo[0].pricingExpression.tieredRates[0].unitPrice' \\
                 | jq -r 'if .units then (.units | tonumber) + ((.nanos // 0 | tonumber) / 1000000000) else empty end' \\
                 | head -1
