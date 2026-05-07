@@ -70,7 +70,7 @@ def calculateAWSCosts(Map specs, Map config) {
     costs.clusterManagement = 0.10 * specs.hoursPerMonth
 
     def instanceType = 't3.medium'
-    def instancesNeeded = Math.ceil(specs.replicas / 4)
+    def instancesNeeded = Math.ceil((double)(specs.replicas / 4))
 
     def instanceCosts = [
         't3.micro'  : 0.0104,
@@ -104,7 +104,7 @@ def calculateGCPCosts(Map specs, Map config) {
     costs.clusterManagement = 0.10 * specs.hoursPerMonth
 
     def machineType = 'e2-standard-2'
-    def instancesNeeded = Math.ceil(specs.replicas / 4)
+    def instancesNeeded = Math.ceil((double)(specs.replicas / 4))
 
     def machineCosts = [
         'e2-micro'        : 0.006,
