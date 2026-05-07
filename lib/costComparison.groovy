@@ -347,8 +347,8 @@ def generateCostReport(Map results) {
         .metric-card:hover { transform: translateY(-5px); }
         .metric-value { font-size: 2.5em; font-weight: bold; margin: 10px 0; }
         .metric-label { color: #666; font-size: 0.9em; text-transform: uppercase; letter-spacing: 1px; }
-        .aws-metric .metric-value { color: #ff9800; }
-        .gcp-metric .metric-value { color: #4285f4; }
+        .aws-metric .metric-value { color: #9575cd; }
+        .gcp-metric .metric-value { color: #f48fb1; }
         .savings-metric .metric-value { color: #4caf50; }
         .percentage-metric .metric-value { color: #9c27b0; }
         
@@ -363,8 +363,8 @@ def generateCostReport(Map results) {
             position: relative; overflow: hidden; }
         .provider-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0;
             background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 100%); }
-        .aws-card { background: linear-gradient(135deg, #ff6b35 0%, #f7931e 50%, #ff9800 100%); color: white; }
-        .gcp-card { background: linear-gradient(135deg, #4285f4 0%, #34a853 50%, #fbbc04 100%); color: white; }
+        .aws-card { background: linear-gradient(135deg, #b39ddb 0%, #9575cd 50%, #7e57c2 100%); color: white; }
+        .gcp-card { background: linear-gradient(135deg, #f8bbd9 0%, #f48fb1 50%, #ec407a 100%); color: white; }
         .provider-content { position: relative; z-index: 1; }
         
         .provider-header { display: flex; align-items: center; margin-bottom: 25px; }
@@ -615,7 +615,7 @@ def generateCostReport(Map results) {
                 datasets: [{
                     label: 'AWS',
                     data: [${results.aws.clusterManagement}, ${results.aws.compute}, ${results.aws.loadBalancer}, ${results.aws.storage}, ${results.aws.dataTransfer}, ${results.aws.networking}],
-                    backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40']
+                    backgroundColor: ['#9575cd', '#f48fb1', '#ab47bc', '#ce93d8', '#ba68c8', '#e1bee7']
                 }]
             },
             options: {
@@ -636,15 +636,15 @@ def generateCostReport(Map results) {
                     {
                         label: 'AWS EKS',
                         data: [${results.aws.total}],
-                        backgroundColor: '#ff9800',
-                        borderColor: '#f57c00',
+                        backgroundColor: '#9575cd',
+                        borderColor: '#7e57c2',
                         borderWidth: 2
                     },
                     {
                         label: 'GCP GKE',
                         data: [${results.gcp.total}],
-                        backgroundColor: '#4285f4',
-                        borderColor: '#1976d2',
+                        backgroundColor: '#f48fb1',
+                        borderColor: '#ec407a',
                         borderWidth: 2
                     }
                 ]
@@ -676,8 +676,8 @@ def generateCostReport(Map results) {
                             ${results.aws.total + results.aws.compute * 3 + results.aws.storage * 3},
                             ${results.aws.total + results.aws.compute * 4 + results.aws.storage * 4}
                         ],
-                        borderColor: '#ff9800',
-                        backgroundColor: 'rgba(255, 152, 0, 0.1)',
+                        borderColor: '#9575cd',
+                        backgroundColor: 'rgba(149, 117, 205, 0.1)',
                         borderWidth: 3,
                         tension: 0.1
                     },
@@ -690,8 +690,8 @@ def generateCostReport(Map results) {
                             ${results.gcp.total + results.gcp.compute * 3 + results.gcp.storage * 3},
                             ${results.gcp.total + results.gcp.compute * 4 + results.gcp.storage * 4}
                         ],
-                        borderColor: '#4285f4',
-                        backgroundColor: 'rgba(66, 133, 244, 0.1)',
+                        borderColor: '#f48fb1',
+        backgroundColor: 'rgba(244, 143, 177, 0.1)',
                         borderWidth: 3,
                         tension: 0.1
                     }
