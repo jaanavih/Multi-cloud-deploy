@@ -80,8 +80,8 @@ node(POD_LABEL) {
                         
                         // Summary for pipeline description (use local variables to avoid conflict)
                         def pipelineCheaperProvider = costResults.aws.total > costResults.gcp.total ? 'GCP' : 'AWS'
-                        def pipelineSavings = Math.abs(costResults.aws.total - costResults.gcp.total)
-                        def pipelineSavingsPercent = Math.abs((costResults.aws.total - costResults.gcp.total) / Math.max(costResults.aws.total, costResults.gcp.total) * 100)
+                        def pipelineSavings = Math.abs((costResults.aws.total - costResults.gcp.total) as double)
+                        def pipelineSavingsPercent = Math.abs(((costResults.aws.total - costResults.gcp.total) / Math.max(costResults.aws.total, costResults.gcp.total) * 100) as double)
                         
                         echo """
 🎯 COST ANALYSIS COMPLETE! 

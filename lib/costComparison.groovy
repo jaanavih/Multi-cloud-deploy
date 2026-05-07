@@ -140,10 +140,10 @@ def calculateGCPCosts(Map specs, Map config) {
 def printDetailedCostAnalysis(Map results, Map specs) {
     def awsTotal = results.aws.total as double
     def gcpTotal = results.gcp.total as double
-    def savings = Math.abs(awsTotal - gcpTotal)
+    def savings = Math.abs((awsTotal - gcpTotal) as double)
     def cheaperProvider = awsTotal < gcpTotal ? 'AWS' : 'GCP'
     def expensiveProvider = awsTotal < gcpTotal ? 'GCP' : 'AWS'
-    def savingsPercent = Math.abs((awsTotal - gcpTotal) / Math.max(awsTotal, gcpTotal) * 100)
+    def savingsPercent = Math.abs(((awsTotal - gcpTotal) / Math.max(awsTotal, gcpTotal) * 100) as double)
     
     echo """
 
@@ -221,13 +221,13 @@ Current (${specs.replicas} replicas):
 
 2x Scale (${specs.replicas * 2} replicas):
    AWS: \$${String.format('%.2f', scaling2x.aws)}/month  │  GCP: \$${String.format('%.2f', scaling2x.gcp)}/month
-   Savings with ${cheaperProvider}: \$${String.format('%.2f', Math.abs(scaling2x.aws - scaling2x.gcp))}/month
+   Savings with ${cheaperProvider}: \$${String.format('%.2f', Math.abs((scaling2x.aws - scaling2x.gcp) as double))}/month
 
 5x Scale (${specs.replicas * 5} replicas):
    AWS: \$${String.format('%.2f', scaling5x.aws)}/month  │  GCP: \$${String.format('%.2f', scaling5x.gcp)}/month
-   Savings with ${cheaperProvider}: \$${String.format('%.2f', Math.abs(scaling5x.aws - scaling5x.gcp))}/month
+   Savings with ${cheaperProvider}: \$${String.format('%.2f', Math.abs((scaling5x.aws - scaling5x.gcp) as double))}/month
 
-🚀 At 5x scale, ${cheaperProvider} could save you \$${String.format('%.0f', Math.abs(scaling5x.aws - scaling5x.gcp) * 12)}/year!"""
+🚀 At 5x scale, ${cheaperProvider} could save you \$${String.format('%.0f', Math.abs((scaling5x.aws - scaling5x.gcp) as double) * 12)}/year!"""
 
     echo """
 ╔════════════════════════════════════════════════════════════════════════════════╗
@@ -256,12 +256,12 @@ Current (${specs.replicas} replicas):
 
 def getCostDifferenceAnalysis(Map results) {
     def diffs = [
-        'Cluster Management': Math.abs(results.aws.clusterManagement - results.gcp.clusterManagement),
-        'Compute': Math.abs(results.aws.compute - results.gcp.compute),
-        'Load Balancer': Math.abs(results.aws.loadBalancer - results.gcp.loadBalancer),
-        'Storage': Math.abs(results.aws.storage - results.gcp.storage),
-        'Data Transfer': Math.abs(results.aws.dataTransfer - results.gcp.dataTransfer),
-        'Networking': Math.abs(results.aws.networking - results.gcp.networking)
+        'Cluster Management': Math.abs((results.aws.clusterManagement - results.gcp.clusterManagement) as double),
+        'Compute': Math.abs((results.aws.compute - results.gcp.compute) as double),
+        'Load Balancer': Math.abs((results.aws.loadBalancer - results.gcp.loadBalancer) as double),
+        'Storage': Math.abs((results.aws.storage - results.gcp.storage) as double),
+        'Data Transfer': Math.abs((results.aws.dataTransfer - results.gcp.dataTransfer) as double),
+        'Networking': Math.abs((results.aws.networking - results.gcp.networking) as double)
     ]
     def maxDiff = diffs.max { it.value }
     return diffs.find { it.value == maxDiff.value }?.key ?: 'Compute'
@@ -305,10 +305,10 @@ def calculateScalingCosts(Map results, int multiplier) {
 def generateCostReport(Map results) {
     def savings = results.aws.total - results.gcp.total
     def maxTot = Math.max(results.aws.total, results.gcp.total)
-    def savingsPercent = maxTot > 0 ? Math.abs(savings / maxTot * 100) : 0
+    def savingsPercent = maxTot > 0 ? Math.abs((savings / maxTot * 100) as double) : 0
     def cheaperProvider = savings > 0 ? 'GCP' : 'AWS'
 
-    def absSav = String.format('%.2f', Math.abs(savings) as double)
+    def absSav = String.format('%.2f', Math.abs(savings as double))
     def pct = String.format('%.1f', savingsPercent as double)
     def awsTot = String.format('%.2f', results.aws.total as double)
     def gcpTot = String.format('%.2f', results.gcp.total as double)
@@ -581,8 +581,8 @@ def generateCostReport(Map results) {
                     <table class="scaling-table">
                         <tr><th>Scale Factor</th><th>AWS Cost</th><th>GCP Cost</th><th>Savings</th></tr>
                         <tr><td>Current (1x)</td><td>\$${awsTot}</td><td>\$${gcpTot}</td><td>\$${absSav}</td></tr>
-                        <tr><td>2x Scale</td><td>\$${String.format('%.2f', (results.aws.total + results.aws.compute + results.aws.storage) as double)}</td><td>\$${String.format('%.2f', (results.gcp.total + results.gcp.compute + results.gcp.storage) as double)}</td><td>\$${String.format('%.2f', Math.abs((results.aws.total + results.aws.compute + results.aws.storage) - (results.gcp.total + results.gcp.compute + results.gcp.storage)) as double)}</td></tr>
-                        <tr><td>5x Scale</td><td>\$${String.format('%.2f', (results.aws.total + results.aws.compute * 4 + results.aws.storage * 4) as double)}</td><td>\$${String.format('%.2f', (results.gcp.total + results.gcp.compute * 4 + results.gcp.storage * 4) as double)}</td><td>\$${String.format('%.2f', Math.abs((results.aws.total + results.aws.compute * 4 + results.aws.storage * 4) - (results.gcp.total + results.gcp.compute * 4 + results.gcp.storage * 4)) as double)}</td></tr>
+                        <tr><td>2x Scale</td><td>\$${String.format('%.2f', (results.aws.total + results.aws.compute + results.aws.storage) as double)}</td><td>\$${String.format('%.2f', (results.gcp.total + results.gcp.compute + results.gcp.storage) as double)}</td><td>\$${String.format('%.2f', Math.abs(((results.aws.total + results.aws.compute + results.aws.storage) - (results.gcp.total + results.gcp.compute + results.gcp.storage)) as double))}</td></tr>
+                        <tr><td>5x Scale</td><td>\$${String.format('%.2f', (results.aws.total + results.aws.compute * 4 + results.aws.storage * 4) as double)}</td><td>\$${String.format('%.2f', (results.gcp.total + results.gcp.compute * 4 + results.gcp.storage * 4) as double)}</td><td>\$${String.format('%.2f', Math.abs(((results.aws.total + results.aws.compute * 4 + results.aws.storage * 4) - (results.gcp.total + results.gcp.compute * 4 + results.gcp.storage * 4)) as double))}</td></tr>
                     </table>
                 </div>
                 
