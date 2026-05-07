@@ -1,0 +1,206 @@
+/**
+ * Standalone Cost Comparison Pipeline
+ * Run this pipeline to get cost estimates before deciding which cloud to deploy to
+ */
+
+@Library('cost-comparison-library') _
+
+pipeline {
+    agent {
+        kubernetes {
+            yaml '''
+apiVersion: v1
+kind: Pod
+spec:
+  tolerations:
+    - key: "role"
+      operator: "Exists"
+      effect: "NoSchedule"
+    - key: "CriticalAddonsOnly"
+      operator: "Exists"
+  containers:
+    - name: tools
+      image: google/cloud-sdk:latest
+      command:
+        - sleep
+      args:
+        - "999999"
+      tty: true
+'''
+        }
+    }
+    
+    parameters {
+        choice(
+            name: 'WORKLOAD_SIZE',
+            choices: ['small', 'medium', 'large'],
+            description: 'Expected workload size (affects cost calculation)'
+        )
+        
+        string(
+            name: 'EXPECTED_REPLICAS',
+            defaultValue: '1',
+            description: 'Number of application replicas'
+        )
+        
+        choice(
+            name: 'AWS_REGION',
+            choices: ['ap-southeast-1', 'us-east-1', 'us-west-2', 'eu-west-1'],
+            description: 'AWS region for deployment'
+        )
+        
+        choice(
+            name: 'GCP_REGION',
+            choices: ['asia-southeast1', 'us-central1', 'us-east1', 'europe-west1'],
+            description: 'GCP region for deployment'
+        )
+    }
+    
+    stages {
+        stage('🔍 Environment Setup') {
+            steps {
+                container('tools') {
+                    script {
+                        echo "🚀 Setting up cost comparison environment..."
+                        echo "📊 Workload Size: ${params.WORKLOAD_SIZE}"
+                        echo "🔢 Expected Replicas: ${params.EXPECTED_REPLICAS}"
+                        echo "🌍 AWS Region: ${params.AWS_REGION}"
+                        echo "🌍 GCP Region: ${params.GCP_REGION}"
+                    }
+                }
+            }
+        }
+        
+        stage('💰 Comprehensive Cost Analysis') {
+            steps {
+                container('tools') {
+                    script {
+                        try {
+                            // Enhanced configuration based on parameters
+                            def costConfig = [
+                                awsRegion: params.AWS_REGION,
+                                gcpRegion: params.GCP_REGION,
+                                hoursPerMonth: 730,
+                                workloadSize: params.WORKLOAD_SIZE,
+                                replicas: Integer.parseInt(params.EXPECTED_REPLICAS)
+                            ]
+                            
+                            echo "🧮 Calculating costs with enhanced parameters..."
+                            
+                            // Run detailed cost comparison
+                            def costResults = costComparison(costConfig)
+                            
+                            // Enhanced console output
+                            def awsTotal = costResults.aws.total
+                            def gcpTotal = costResults.gcp.total
+                            def difference = Math.abs(awsTotal - gcpTotal)
+                            def percentDiff = (difference / Math.max(awsTotal, gcpTotal)) * 100
+                            def cheaperProvider = awsTotal > gcpTotal ? 'GCP' : 'AWS'
+                            
+                            echo """
+╔════════════════════════════════════════════════════════════════════════════════════════╗
+║                              💰 DETAILED COST COMPARISON                               ║
+╠════════════════════════════════════════════════════════════════════════════════════════╣
+║                                                                                        ║
+║  🟠 AWS EKS (${params.AWS_REGION})                                                         ║
+║     └── Monthly Cost: \$${String.format("%.2f", awsTotal)}                                                      ║
+║                                                                                        ║
+║  🔵 GCP GKE (${params.GCP_REGION})                                                     ║
+║     └── Monthly Cost: \$${String.format("%.2f", gcpTotal)}                                                      ║
+║                                                                                        ║
+║  💡 RECOMMENDATION: ${cheaperProvider} is ${String.format("%.1f", percentDiff)}% cheaper (\$${String.format("%.2f", difference)}/month savings)           ║
+║                                                                                        ║
+║  📊 Annual Cost Difference: \$${String.format("%.2f", difference * 12)}                                           ║
+║                                                                                        ║
+╚════════════════════════════════════════════════════════════════════════════════════════╝
+                            """
+                            
+                            // Publish detailed HTML report
+                            publishHTML([
+                                allowMissing: false,
+                                alwaysLinkToLastBuild: true,
+                                keepAll: true,
+                                reportDir: '.',
+                                reportFiles: 'cost-comparison-report.html',
+                                reportName: '💰 Detailed Cost Analysis',
+                                reportTitles: 'Multi-Cloud Cost Comparison Report'
+                            ])
+                            
+                            // Set build result based on analysis
+                            if (difference > 50) {
+                                currentBuild.result = 'SUCCESS'
+                                echo "✅ Significant cost difference found - choose ${cheaperProvider} for savings!"
+                            } else {
+                                echo "ℹ️  Small cost difference - choose based on other factors (performance, features, etc.)"
+                            }
+                            
+                            // Update build description
+                            currentBuild.description = """
+💰 ${cheaperProvider} cheaper by \$${String.format("%.2f", difference)}/month (${String.format("%.1f", percentDiff)}%)
+🔢 ${params.EXPECTED_REPLICAS} replicas | 📊 ${params.WORKLOAD_SIZE} workload
+""".trim()
+                            
+                        } catch (Exception e) {
+                            currentBuild.result = 'FAILURE'
+                            error("❌ Cost comparison failed: ${e.message}")
+                        }
+                    }
+                }
+            }
+        }
+        
+        stage('📊 Cost Optimization Recommendations') {
+            steps {
+                container('tools') {
+                    script {
+                        echo """
+╔════════════════════════════════════════════════════════════════════════════════════════╗
+║                            💡 OPTIMIZATION RECOMMENDATIONS                             ║
+╠════════════════════════════════════════════════════════════════════════════════════════╣
+║                                                                                        ║
+║  🔧 General Recommendations:                                                           ║
+║     • Use spot/preemptible instances for non-critical workloads                       ║
+║     • Implement auto-scaling to match actual usage                                    ║
+║     • Consider reserved instances for predictable workloads                           ║
+║     • Monitor and optimize resource requests/limits                                   ║
+║                                                                                        ║
+║  ☁️  AWS Specific:                                                                     ║
+║     • Use AWS Savings Plans for sustained workloads                                   ║
+║     • Consider Fargate for serverless container execution                             ║
+║     • Use Application Load Balancer instead of Classic LB                            ║
+║                                                                                        ║
+║  🌩️  GCP Specific:                                                                     ║
+║     • Use sustained use discounts (automatic)                                         ║
+║     • Consider Cloud Run for serverless workloads                                     ║
+║     • Use regional persistent disks for better performance/cost                       ║
+║                                                                                        ║
+╚════════════════════════════════════════════════════════════════════════════════════════╝
+                        """
+                    }
+                }
+            }
+        }
+    }
+    
+    post {
+        always {
+            container('tools') {
+                script {
+                    // Archive cost analysis artifacts
+                    archiveArtifacts artifacts: 'cost-comparison-report.html', fingerprint: true
+                    
+                    echo "📋 Cost comparison pipeline completed!"
+                    echo "📄 View the detailed HTML report in the build artifacts"
+                }
+            }
+        }
+        
+        success {
+            echo "✅ Cost comparison completed successfully!"
+        }
+        
+        failure {
+            echo "❌ Cost comparison pipeline failed - check logs for details"
+        }
+    }
+}

@@ -1,0 +1,373 @@
+/**
+ * Enhanced Multi-Cloud Deployment Pipeline with Cost Comparison
+ * 
+ * Features:
+ * - Pre-deployment cost analysis
+ * - Interactive cost comparison reports
+ * - Smart deployment recommendations
+ * - Cost-aware deployment decisions
+ */
+
+@Library('cost-comparison-library') _
+
+properties([
+    parameters([
+        booleanParam(
+            name: 'SHOW_COST_COMPARISON',
+            defaultValue: true,
+            description: '💰 Show cost comparison before deployment (recommended)'
+        ),
+        
+        booleanParam(
+            name: 'COST_OPTIMIZATION_MODE',
+            defaultValue: false,
+            description: '🎯 Enable cost optimization recommendations'
+        ),
+
+        choice(
+            name: 'CLOUD_PROVIDER',
+            choices: ['auto-select', 'aws', 'gcp'],
+            description: '☁️ Cloud provider (auto-select chooses cheapest)'
+        ),
+
+        string(
+            name: 'NAMESPACE',
+            defaultValue: 'default',
+            description: '🏷️ Kubernetes namespace'
+        ),
+
+        choice(
+            name: 'ACTION',
+            choices: ['deploy', 'delete', 'cost-analysis-only'],
+            description: '🚀 Deployment action'
+        ),
+        
+        choice(
+            name: 'WORKLOAD_SIZE',
+            choices: ['small', 'medium', 'large'],
+            description: '📊 Expected workload size (affects cost calculation)'
+        )
+    ])
+])
+
+podTemplate(
+    yaml: '''
+apiVersion: v1
+kind: Pod
+spec:
+  tolerations:
+    - key: "role"
+      operator: "Exists"
+      effect: "NoSchedule"
+    - key: "CriticalAddonsOnly"
+      operator: "Exists"
+  containers:
+    - name: tools
+      image: google/cloud-sdk:latest
+      command:
+        - sleep
+      args:
+        - "999999"
+      tty: true
+'''
+) {
+
+node(POD_LABEL) {
+    
+    // Global variables to store cost analysis results
+    def costResults = null
+    def selectedProvider = params.CLOUD_PROVIDER
+    
+    stage('🔍 Repository Checkout') {
+        checkout scm
+        echo "✅ Source code checked out successfully"
+    }
+
+    stage('💰 Smart Cost Analysis') {
+        when {
+            anyOf {
+                expression { params.SHOW_COST_COMPARISON == true }
+                expression { params.CLOUD_PROVIDER == 'auto-select' }
+                expression { params.ACTION == 'cost-analysis-only' }
+            }
+        }
+        
+        container('tools') {
+            script {
+                try {
+                    echo "🧮 Running intelligent cost analysis..."
+                    
+                    // Enhanced configuration
+                    def costConfig = [
+                        awsRegion: 'ap-southeast-1',
+                        gcpRegion: 'asia-southeast1',
+                        hoursPerMonth: 730,
+                        workloadSize: params.WORKLOAD_SIZE,
+                        optimizationMode: params.COST_OPTIMIZATION_MODE
+                    ]
+                    
+                    // Run cost comparison
+                    costResults = costComparison(costConfig)
+                    
+                    // Auto-select cheapest provider if requested
+                    if (params.CLOUD_PROVIDER == 'auto-select') {
+                        selectedProvider = costResults.aws.total > costResults.gcp.total ? 'gcp' : 'aws'
+                        echo "🎯 Auto-selected ${selectedProvider.toUpperCase()} as the most cost-effective option"
+                    }
+                    
+                    // Enhanced console output with recommendations
+                    def awsTotal = costResults.aws.total
+                    def gcpTotal = costResults.gcp.total
+                    def difference = Math.abs(awsTotal - gcpTotal)
+                    def percentDiff = (difference / Math.max(awsTotal, gcpTotal)) * 100
+                    def cheaperProvider = awsTotal > gcpTotal ? 'GCP' : 'AWS'
+                    def annualSavings = difference * 12
+                    
+                    echo """
+╔══════════════════════════════════════════════════════════════════════════════════════════════╗
+║                               💰 SMART COST ANALYSIS RESULTS                                 ║
+╠══════════════════════════════════════════════════════════════════════════════════════════════╣
+║                                                                                              ║
+║  🟠 AWS EKS Monthly Cost: \$${String.format("%8.2f", awsTotal)}                                                    ║
+║  🔵 GCP GKE Monthly Cost: \$${String.format("%8.2f", gcpTotal)}                                                    ║
+║                                                                                              ║
+║  💡 SMART RECOMMENDATION:                                                                    ║
+║     └── ${cheaperProvider} is ${String.format("%.1f", percentDiff)}% cheaper (\$${String.format("%.2f", difference)}/month savings)                                ║
+║     └── Annual savings potential: \$${String.format("%.2f", annualSavings)}                                                ║
+║                                                                                              ║
+║  🎯 SELECTED PROVIDER: ${selectedProvider.toUpperCase()}                                                           ║
+║                                                                                              ║
+╚══════════════════════════════════════════════════════════════════════════════════════════════╝
+                    """
+                    
+                    // Publish enhanced HTML report
+                    publishHTML([
+                        allowMissing: false,
+                        alwaysLinkToLastBuild: true,
+                        keepAll: true,
+                        reportDir: '.',
+                        reportFiles: 'cost-comparison-report.html',
+                        reportName: '💰 Smart Cost Analysis',
+                        reportTitles: 'Multi-Cloud Cost Intelligence Report'
+                    ])
+                    
+                    // Smart build description
+                    def savingsEmoji = difference > 50 ? '🎉' : difference > 20 ? '💰' : '💡'
+                    currentBuild.description = """
+${savingsEmoji} ${cheaperProvider} cheaper by \$${String.format("%.2f", difference)}/month
+🚀 Deploying to: ${selectedProvider.toUpperCase()}
+📊 Workload: ${params.WORKLOAD_SIZE}
+""".trim()
+                    
+                    // Store results for later stages
+                    env.COST_ANALYSIS_RESULTS = writeJSON returnText: true, json: [
+                        aws: costResults.aws,
+                        gcp: costResults.gcp,
+                        selectedProvider: selectedProvider,
+                        recommendation: cheaperProvider.toLowerCase()
+                    ]
+                    
+                    // Exit if only cost analysis was requested
+                    if (params.ACTION == 'cost-analysis-only') {
+                        echo "📊 Cost analysis complete - no deployment requested"
+                        currentBuild.result = 'SUCCESS'
+                        return
+                    }
+                    
+                } catch (Exception e) {
+                    echo "⚠️  Cost analysis failed: ${e.message}"
+                    echo "🚀 Continuing with original provider selection..."
+                    selectedProvider = params.CLOUD_PROVIDER == 'auto-select' ? 'gcp' : params.CLOUD_PROVIDER
+                }
+            }
+        }
+    }
+
+    stage('🛠️ Install Required Tools') {
+        when {
+            not { 
+                expression { params.ACTION == 'cost-analysis-only' }
+            }
+        }
+        
+        container('tools') {
+            // Common tools (always run)
+            sh '''
+            echo "🔧 Installing common tools..."
+            apt-get update -qq
+            apt-get install -y -qq curl unzip git
+            
+            # Install kubectl
+            curl -LO "https://dl.k8s.io/release/v1.30.0/bin/linux/amd64/kubectl" 2>/dev/null
+            chmod +x kubectl
+            mv kubectl /usr/local/bin/
+            
+            echo "✅ kubectl $(kubectl version --client --short)"
+            '''
+            
+            // Cloud-specific tools
+            if (selectedProvider == "aws") {
+                echo "🟠 Installing AWS CLI..."
+                sh '''
+                curl -s "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+                unzip -q awscliv2.zip
+                ./aws/install
+                echo "✅ AWS CLI $(aws --version)"
+                '''
+            }
+            
+            if (selectedProvider == "gcp") {
+                echo "🔵 Setting up GCP tools..."
+                sh '''
+                gcloud components install gke-gcloud-auth-plugin -q
+                echo "✅ GCP SDK $(gcloud version --format='value(Google Cloud SDK)')"
+                '''
+            }
+        }
+    }
+
+    stage('☁️ Configure Cloud Access') {
+        when {
+            not { 
+                expression { params.ACTION == 'cost-analysis-only' }
+            }
+        }
+        
+        container('tools') {
+            script {
+                echo "🔐 Configuring access for ${selectedProvider.toUpperCase()}..."
+                
+                if (selectedProvider == "aws") {
+                    withCredentials([[
+                        $class: 'AmazonWebServicesCredentialsBinding',
+                        credentialsId: 'aws-creds'
+                    ]]) {
+                        sh '''
+                        mkdir -p /root/.kube
+                        aws eks update-kubeconfig --region ap-southeast-1 --name hello-cluster
+                        echo "✅ Connected to AWS EKS cluster"
+                        kubectl get nodes --no-headers | wc -l | xargs echo "📊 Available nodes:"
+                        '''
+                    }
+                }
+                
+                if (selectedProvider == "gcp") {
+                    withCredentials([
+                        file(credentialsId: 'gcp-sa-key', variable: 'GCP_KEY')
+                    ]) {
+                        sh '''
+                        export GOOGLE_APPLICATION_CREDENTIALS=$GCP_KEY
+                        gcloud auth activate-service-account --key-file=$GOOGLE_APPLICATION_CREDENTIALS
+                        gcloud config set project gke-qa2-36938
+                        gcloud container clusters get-credentials gke-qa2-sg1 --zone asia-southeast1 --project gke-qa2-36938 --internal-ip
+                        echo "✅ Connected to GCP GKE cluster"
+                        kubectl get nodes --no-headers | wc -l | xargs echo "📊 Available nodes:"
+                        '''
+                    }
+                }
+            }
+        }
+    }
+
+    stage('🚀 Smart Deployment') {
+        when {
+            expression { params.ACTION == 'deploy' }
+        }
+        
+        container('tools') {
+            script {
+                echo "🚀 Deploying to ${selectedProvider.toUpperCase()} (cost-optimized choice)"
+                
+                if (selectedProvider == "aws") {
+                    withCredentials([[
+                        $class: 'AmazonWebServicesCredentialsBinding',
+                        credentialsId: 'aws-creds'
+                    ]]) {
+                        sh """
+                        echo "🟠 Deploying to AWS EKS..."
+                        kubectl apply -n ${params.NAMESPACE} -f k8s/deployment.yaml
+                        kubectl apply -n ${params.NAMESPACE} -f k8s/service.yaml
+                        
+                        echo "⏳ Waiting for deployment to be ready..."
+                        kubectl wait --for=condition=available --timeout=300s deployment/hello-app -n ${params.NAMESPACE}
+                        
+                        echo "✅ Deployment successful!"
+                        kubectl get pods,svc -n ${params.NAMESPACE}
+                        """
+                    }
+                }
+                
+                if (selectedProvider == "gcp") {
+                    withCredentials([
+                        file(credentialsId: 'gcp-sa-key', variable: 'GCP_KEY')
+                    ]) {
+                        sh """
+                        echo "🔵 Deploying to GCP GKE..."
+                        kubectl apply -n ${params.NAMESPACE} -f k8s/deployment.yaml
+                        kubectl apply -n ${params.NAMESPACE} -f k8s/service.yaml
+                        
+                        echo "⏳ Waiting for deployment to be ready..."
+                        kubectl wait --for=condition=available --timeout=300s deployment/hello-app -n ${params.NAMESPACE}
+                        
+                        echo "✅ Deployment successful!"
+                        kubectl get pods,svc -n ${params.NAMESPACE}
+                        """
+                    }
+                }
+                
+                // Post-deployment cost summary
+                if (costResults) {
+                    def monthlyCost = selectedProvider == 'aws' ? costResults.aws.total : costResults.gcp.total
+                    echo """
+╔══════════════════════════════════════════════════════════════════════════════════════════════╗
+║                               🎉 DEPLOYMENT SUCCESSFUL!                                      ║
+╠══════════════════════════════════════════════════════════════════════════════════════════════╣
+║  ☁️  Provider: ${selectedProvider.toUpperCase()}                                                                        ║
+║  💰 Estimated Monthly Cost: \$${String.format("%.2f", monthlyCost)}                                                     ║
+║  📊 Workload Size: ${params.WORKLOAD_SIZE}                                                                ║
+║  🏷️  Namespace: ${params.NAMESPACE}                                                                 ║
+╚══════════════════════════════════════════════════════════════════════════════════════════════╝
+                    """
+                }
+            }
+        }
+    }
+
+    stage('🗑️ Clean Deployment') {
+        when {
+            expression { params.ACTION == 'delete' }
+        }
+        
+        container('tools') {
+            script {
+                echo "🗑️ Cleaning up deployment from ${selectedProvider.toUpperCase()}..."
+                
+                if (selectedProvider == "aws") {
+                    withCredentials([[
+                        $class: 'AmazonWebServicesCredentialsBinding',
+                        credentialsId: 'aws-creds'
+                    ]]) {
+                        sh """
+                        kubectl delete -n ${params.NAMESPACE} -f k8s/deployment.yaml || true
+                        kubectl delete -n ${params.NAMESPACE} -f k8s/service.yaml || true
+                        echo "✅ AWS resources cleaned up"
+                        """
+                    }
+                }
+                
+                if (selectedProvider == "gcp") {
+                    withCredentials([
+                        file(credentialsId: 'gcp-sa-key', variable: 'GCP_KEY')
+                    ]) {
+                        sh """
+                        kubectl delete -n ${params.NAMESPACE} -f k8s/deployment.yaml || true
+                        kubectl delete -n ${params.NAMESPACE} -f k8s/service.yaml || true
+                        echo "✅ GCP resources cleaned up"
+                        """
+                    }
+                }
+            }
+        }
+    }
+}
+}

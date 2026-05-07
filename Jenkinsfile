@@ -1,22 +1,40 @@
+/**
+ * Default pipeline (Option A): cost + optional AI reports, then input() to choose AWS/GCP,
+ * then install → kubeconfig → deploy/delete (same build).
+ *
+ * Legacy alternative (pick cloud on first parameter screen): Jenkinsfile.parameters-first
+ *
+ * Jenkins cannot show HTML before the first parameter screen; review reports after the
+ * build starts, then approve the input step.
+ */
+@Library('cost-comparison-library') _
+
 properties([
     parameters([
-
-        choice(
-            name: 'CLOUD_PROVIDER',
-            choices: ['aws', 'gcp'],
-            description: 'Choose cloud provider'
+        booleanParam(
+            name: 'SHOW_COST_COMPARISON',
+            defaultValue: true,
+            description: 'Run deterministic cost comparison + HTML reports before choosing cloud'
         ),
-
+        booleanParam(
+            name: 'USE_AI_COST_NARRATIVE',
+            defaultValue: true,
+            description: 'Run scripts/ai_cost_comparison.py (Secret text credential id: openai-api-key)'
+        ),
         string(
             name: 'NAMESPACE',
             defaultValue: 'default',
             description: 'Kubernetes namespace'
         ),
-
         choice(
             name: 'ACTION',
             choices: ['deploy', 'delete'],
-            description: 'Choose action'
+            description: 'Choose action (applied after you pick the cloud)'
+        ),
+        string(
+            name: 'DOWNSTREAM_DEPLOY_JOB',
+            defaultValue: '',
+            description: 'Optional: Jenkins job name to trigger instead of inline deploy (e.g. folder/deploy). Leave empty to deploy in this job.'
         )
     ])
 ])
@@ -25,28 +43,20 @@ podTemplate(
     yaml: '''
 apiVersion: v1
 kind: Pod
-
 spec:
-
   tolerations:
     - key: "role"
       operator: "Exists"
       effect: "NoSchedule"
-
     - key: "CriticalAddonsOnly"
       operator: "Exists"
-
   containers:
-
     - name: tools
       image: google/cloud-sdk:latest
-
       command:
         - sleep
-
       args:
         - "999999"
-
       tty: true
 '''
 ) {
@@ -54,117 +64,195 @@ spec:
 node(POD_LABEL) {
 
     stage('Checkout') {
-
         checkout scm
     }
 
-    stage('Install Tools') {
-
+    stage('💰 Cost comparison (+ optional AI)') {
         container('tools') {
-
-            // Common tools (always run)
-            sh '''
-            apt-get update
-    
-            apt-get install -y \
-              curl \
-              unzip \
-              git
-    
-            # Install kubectl
-            curl -LO "https://dl.k8s.io/release/v1.30.0/bin/linux/amd64/kubectl"
-            chmod +x kubectl
-            mv kubectl /usr/local/bin/
-    
-            echo "===== Kubectl Version ====="
-            kubectl version --client
-            '''
-    
-            // AWS specific
-            if (params.CLOUD_PROVIDER == "aws") {
-                sh '''
-                echo "===== Installing AWS CLI ====="
-    
-                curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" \
-                  -o "awscliv2.zip"
-    
-                unzip awscliv2.zip
-                ./aws/install || true
-    
-                aws --version
-                '''
+            script {
+                if (params.SHOW_COST_COMPARISON != true) {
+                    echo 'Skipping cost comparison (SHOW_COST_COMPARISON is false)'
+                } else {
+                    try {
+                        echo '🔍 Analyzing deployment costs for AWS vs GCP...'
+                        def costConfig = [
+                            awsRegion: 'ap-southeast-1',
+                            gcpRegion: 'asia-southeast1',
+                            hoursPerMonth: 730
+                        ]
+                        def costResults = costComparison(costConfig)
+                        echo """
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                           💰 COST COMPARISON RESULTS                         ║
+╠══════════════════════════════════════════════════════════════════════════════╣
+║  AWS EKS (${costResults.aws.region}):     \$${String.format("%.2f", costResults.aws.total)}/month                                    ║
+║  GCP GKE (${costResults.gcp.region}): \$${String.format("%.2f", costResults.gcp.total)}/month                                   ║
+║                                                                              ║
+║  💡 ${costResults.aws.total > costResults.gcp.total ? 'GCP is cheaper' : 'AWS is cheaper'} by \$${String.format("%.2f", Math.abs(costResults.aws.total - costResults.gcp.total))}/month                                        ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+                        """
+                        publishHTML([
+                            allowMissing: false,
+                            alwaysLinkToLastBuild: true,
+                            keepAll: true,
+                            reportDir: '.',
+                            reportFiles: 'cost-comparison-report.html',
+                            reportName: '💰 Cost Comparison Report',
+                            reportTitles: 'Multi-Cloud Cost Analysis'
+                        ])
+                        if (params.USE_AI_COST_NARRATIVE) {
+                            sh '''
+                                apt-get update -qq
+                                apt-get install -y -qq python3-pip python3-venv
+                                python3 -m venv .ai-venv
+                                . .ai-venv/bin/activate
+                                pip install -q -r scripts/requirements.txt
+                            '''
+                            try {
+                                withCredentials([
+                                    string(credentialsId: 'openai-api-key', variable: 'OPENAI_API_KEY')
+                                ]) {
+                                    sh '''
+                                        . .ai-venv/bin/activate
+                                        export AI_COST_PROVIDER=openai
+                                        export AWS_COST_REGION=ap-southeast-1
+                                        export GCP_COST_REGION=asia-southeast1
+                                        python3 scripts/ai_cost_comparison.py --out-dir .
+                                    '''
+                                }
+                            } catch (Exception credErr) {
+                                echo "⚠️  OpenAI credential not available (${credErr.message}); baseline-only AI report."
+                                sh '''
+                                    . .ai-venv/bin/activate
+                                    python3 scripts/ai_cost_comparison.py --provider none --out-dir .
+                                '''
+                            }
+                            publishHTML([
+                                allowMissing: true,
+                                alwaysLinkToLastBuild: true,
+                                keepAll: true,
+                                reportDir: '.',
+                                reportFiles: 'cost-comparison-ai-report.html',
+                                reportName: '🤖 AI Cost Narrative',
+                                reportTitles: 'Baseline + LLM narrative'
+                            ])
+                            archiveArtifacts artifacts: 'cost-comparison-ai.json,cost-comparison-ai-report.html', fingerprint: true
+                        }
+                        env.COST_RESULTS = writeJSON returnText: true, json: costResults
+                        def cheaperProvider = costResults.aws.total > costResults.gcp.total ? 'GCP' : 'AWS'
+                        def savings = Math.abs(costResults.aws.total - costResults.gcp.total)
+                        currentBuild.description = "💰 ${cheaperProvider} cheaper by \$${String.format("%.2f", savings)}/month (pick cloud next)"
+                    } catch (Exception e) {
+                        echo "⚠️  Cost comparison failed: ${e.message}"
+                    }
+                }
             }
-    
-            // GCP specific
-            if (params.CLOUD_PROVIDER == "gcp") {
-                sh '''
-                echo "===== GCP Setup ====="
-    
-                # Install GKE auth plugin (if needed)
-                gcloud components install gke-gcloud-auth-plugin -q || true
-    
-                gcloud version
-                '''
+        }
+    }
+
+    stage('✋ Choose cloud (after reviewing reports)') {
+        script {
+            def raw = input(
+                message: 'Review the published HTML reports on this build, then choose AWS or GCP.',
+                ok: 'Continue',
+                parameters: [
+                    choice(
+                        name: 'CLOUD_PROVIDER',
+                        choices: ['aws', 'gcp'],
+                        description: 'Target cluster for kubectl'
+                    )
+                ]
+            )
+            if (raw instanceof Map) {
+                env.TARGET_CLOUD = raw['CLOUD_PROVIDER']
+            } else {
+                env.TARGET_CLOUD = raw.toString()
+            }
+            echo "Selected cloud: ${env.TARGET_CLOUD}"
+        }
+    }
+
+    stage('Optional: trigger downstream deploy job') {
+        container('tools') {
+            script {
+                def downstream = params.DOWNSTREAM_DEPLOY_JOB?.trim()
+                if (downstream) {
+                    build job: downstream, parameters: [
+                        string(name: 'CLOUD_PROVIDER', value: env.TARGET_CLOUD),
+                        string(name: 'NAMESPACE', value: params.NAMESPACE),
+                        [$class: 'ChoiceParameterValue', name: 'ACTION', value: params.ACTION],
+                        booleanParam(name: 'SHOW_COST_COMPARISON', value: false),
+                        booleanParam(name: 'USE_AI_COST_NARRATIVE', value: false)
+                    ], wait: false
+                    echo "Triggered ${downstream} with CLOUD_PROVIDER=${env.TARGET_CLOUD}"
+                } else {
+                    echo 'DOWNSTREAM_DEPLOY_JOB empty — using inline deploy path.'
+                }
+            }
+        }
+    }
+
+    stage('Install Tools') {
+        container('tools') {
+            script {
+                def downstream = params.DOWNSTREAM_DEPLOY_JOB?.trim()
+                if (downstream) {
+                    echo 'Skipping inline install — downstream job was triggered.'
+                } else {
+                    sh '''
+                    apt-get update
+                    apt-get install -y curl unzip git
+                    curl -LO "https://dl.k8s.io/release/v1.30.0/bin/linux/amd64/kubectl"
+                    chmod +x kubectl
+                    mv kubectl /usr/local/bin/
+                    kubectl version --client
+                    '''
+                    if (env.TARGET_CLOUD == 'aws') {
+                        sh '''
+                        curl -s "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o awscliv2.zip
+                        unzip -q awscliv2.zip
+                        ./aws/install || true
+                        aws --version
+                        '''
+                    }
+                    if (env.TARGET_CLOUD == 'gcp') {
+                        sh '''
+                        gcloud components install gke-gcloud-auth-plugin -q || true
+                        gcloud version
+                        '''
+                    }
+                }
             }
         }
     }
 
     stage('Configure Cluster Access') {
-
         container('tools') {
-
             script {
-
-                // ================= AWS =================
-
-                if (params.CLOUD_PROVIDER == "aws") {
-
+                def downstream = params.DOWNSTREAM_DEPLOY_JOB?.trim()
+                if (downstream) {
+                    echo 'Skipping kubeconfig — downstream job will connect to the cluster.'
+                } else if (env.TARGET_CLOUD == 'aws') {
                     withCredentials([[
                         $class: 'AmazonWebServicesCredentialsBinding',
                         credentialsId: 'aws-creds'
                     ]]) {
-
                         sh '''
                         mkdir -p /root/.kube
-
-                        aws eks update-kubeconfig \
-                          --region ap-southeast-1 \
-                          --name hello-cluster
-
-                        echo "===== EKS Nodes ====="
-
+                        aws eks update-kubeconfig --region ap-southeast-1 --name hello-cluster
                         kubectl get nodes
                         '''
                     }
-                }
-
-                // ================= GCP =================
-
-                if (params.CLOUD_PROVIDER == "gcp") {
-
+                } else if (env.TARGET_CLOUD == 'gcp') {
                     withCredentials([
-                        file(
-                            credentialsId: 'gcp-sa-key',
-                            variable: 'GCP_KEY'
-                        )
+                        file(credentialsId: 'gcp-sa-key', variable: 'GCP_KEY')
                     ]) {
-
                         sh '''
                         export GOOGLE_APPLICATION_CREDENTIALS=$GCP_KEY
-
-                        gcloud auth activate-service-account \
-                          --key-file=$GOOGLE_APPLICATION_CREDENTIALS
-
+                        gcloud auth activate-service-account --key-file=$GOOGLE_APPLICATION_CREDENTIALS
                         gcloud config set project gke-qa2-36938
-
-                        gcloud container clusters get-credentials \
-                          gke-qa2-sg1 \
-                          --zone asia-southeast1 \
-                          --project gke-qa2-36938 \
-                          --internal-ip
-
-                        echo "===== GKE Nodes ====="
-
+                        gcloud container clusters get-credentials gke-qa2-sg1 \
+                          --zone asia-southeast1 --project gke-qa2-36938 --internal-ip
                         kubectl get nodes
                         '''
                     }
@@ -174,105 +262,45 @@ node(POD_LABEL) {
     }
 
     stage('Deploy/Delete Application') {
-
         container('tools') {
-
             script {
-
-                // ================= AWS =================
-
-                if (params.CLOUD_PROVIDER == "aws") {
-
+                def downstream = params.DOWNSTREAM_DEPLOY_JOB?.trim()
+                if (downstream) {
+                    echo 'Skipping inline deploy — downstream job was triggered.'
+                } else if (env.TARGET_CLOUD == 'aws') {
                     withCredentials([[
                         $class: 'AmazonWebServicesCredentialsBinding',
                         credentialsId: 'aws-creds'
                     ]]) {
-
-                        if (params.ACTION == "deploy") {
-
+                        if (params.ACTION == 'deploy') {
                             sh """
-                            echo "===== Deploying to AWS EKS ====="
-
-                            kubectl apply -n ${params.NAMESPACE} \
-                              -f k8s/deployment.yaml
-
-                            kubectl apply -n ${params.NAMESPACE} \
-                              -f k8s/service.yaml
-
-                            echo "===== Pods ====="
-
-                            kubectl get pods -n ${params.NAMESPACE}
-
-                            echo "===== Services ====="
-
-                            kubectl get svc -n ${params.NAMESPACE}
+                            kubectl apply -n ${params.NAMESPACE} -f k8s/deployment.yaml
+                            kubectl apply -n ${params.NAMESPACE} -f k8s/service.yaml
+                            kubectl get pods,svc -n ${params.NAMESPACE}
                             """
                         }
-
-                        if (params.ACTION == "delete") {
-
+                        if (params.ACTION == 'delete') {
                             sh """
-                            echo "===== Deleting from AWS EKS ====="
-
-                            kubectl delete -n ${params.NAMESPACE} \
-                              -f k8s/deployment.yaml || true
-
-                            kubectl delete -n ${params.NAMESPACE} \
-                              -f k8s/service.yaml || true
+                            kubectl delete -n ${params.NAMESPACE} -f k8s/deployment.yaml || true
+                            kubectl delete -n ${params.NAMESPACE} -f k8s/service.yaml || true
                             """
                         }
                     }
-                }
-
-                // ================= GCP =================
-
-                if (params.CLOUD_PROVIDER == "gcp") {
-
+                } else if (env.TARGET_CLOUD == 'gcp') {
                     withCredentials([
-                        file(
-                            credentialsId: 'gcp-sa-key',
-                            variable: 'GCP_KEY'
-                        )
+                        file(credentialsId: 'gcp-sa-key', variable: 'GCP_KEY')
                     ]) {
-
-                        // sh '''
-                        // export GOOGLE_APPLICATION_CREDENTIALS=$GCP_KEY
-
-                        // gcloud auth activate-service-account \
-                        //   --key-file=$GOOGLE_APPLICATION_CREDENTIALS
-                        // '''
-
-                        if (params.ACTION == "deploy") {
-
+                        if (params.ACTION == 'deploy') {
                             sh """
-                            echo "===== Deploying to GKE ====="
-
-                            kubectl apply -n ${params.NAMESPACE} \
-                              -f k8s/deployment.yaml
-
-                            kubectl apply -n ${params.NAMESPACE} \
-                              -f k8s/service.yaml
-
-                            echo "===== Pods ====="
-
-                            kubectl get pods -n ${params.NAMESPACE}
-
-                            echo "===== Services ====="
-
-                            kubectl get svc -n ${params.NAMESPACE}
+                            kubectl apply -n ${params.NAMESPACE} -f k8s/deployment.yaml
+                            kubectl apply -n ${params.NAMESPACE} -f k8s/service.yaml
+                            kubectl get pods,svc -n ${params.NAMESPACE}
                             """
                         }
-
-                        if (params.ACTION == "delete") {
-
+                        if (params.ACTION == 'delete') {
                             sh """
-                            echo "===== Deleting from GKE ====="
-
-                            kubectl delete -n ${params.NAMESPACE} \
-                              -f k8s/deployment.yaml || true
-
-                            kubectl delete -n ${params.NAMESPACE} \
-                              -f k8s/service.yaml || true
+                            kubectl delete -n ${params.NAMESPACE} -f k8s/deployment.yaml || true
+                            kubectl delete -n ${params.NAMESPACE} -f k8s/service.yaml || true
                             """
                         }
                     }
