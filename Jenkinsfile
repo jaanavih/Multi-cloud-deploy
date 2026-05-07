@@ -209,13 +209,7 @@ node(POD_LABEL) {
                             sh """
                             echo "🚀 Applying Kubernetes manifests..."
                             
-                            # Apply ConfigMaps first (dependencies)
-                            if [ -f k8s/nginx-config.yaml ]; then
-                                echo "📄 Creating nginx ConfigMap..."
-                                kubectl apply -n ${params.NAMESPACE} -f k8s/nginx-config.yaml
-                            fi
-                            
-                            # Then apply deployments and services (with timestamp for rolling update)
+                            # Apply deployments and services (with timestamp for rolling update)
                             echo "🔄 Preparing deployment with timestamp for rolling update..."
                             TIMESTAMP=\$(date +%Y%m%d-%H%M%S)
                             BUILD_NUM=\${BUILD_NUMBER:-\$(date +%s)}
@@ -248,7 +242,6 @@ node(POD_LABEL) {
                             sh """
                             kubectl delete -n ${params.NAMESPACE} -f k8s/deployment.yaml || true
                             kubectl delete -n ${params.NAMESPACE} -f k8s/service.yaml || true
-                            kubectl delete -n ${params.NAMESPACE} -f k8s/nginx-config.yaml || true
                             """
                         }
                     }
@@ -260,13 +253,7 @@ node(POD_LABEL) {
                             sh """
                             echo "🚀 Applying Kubernetes manifests..."
                             
-                            # Apply ConfigMaps first (dependencies)
-                            if [ -f k8s/nginx-config.yaml ]; then
-                                echo "📄 Creating nginx ConfigMap..."
-                                kubectl apply -n ${params.NAMESPACE} -f k8s/nginx-config.yaml
-                            fi
-                            
-                            # Then apply deployments and services (with timestamp for rolling update)
+                            # Apply deployments and services (with timestamp for rolling update)
                             echo "🔄 Preparing deployment with timestamp for rolling update..."
                             TIMESTAMP=\$(date +%Y%m%d-%H%M%S)
                             BUILD_NUM=\${BUILD_NUMBER:-\$(date +%s)}
@@ -299,7 +286,6 @@ node(POD_LABEL) {
                             sh """
                             kubectl delete -n ${params.NAMESPACE} -f k8s/deployment.yaml || true
                             kubectl delete -n ${params.NAMESPACE} -f k8s/service.yaml || true
-                            kubectl delete -n ${params.NAMESPACE} -f k8s/nginx-config.yaml || true
                             """
                         }
                     }
