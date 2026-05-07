@@ -11,12 +11,19 @@ spec:
     metadata:
       labels:
         app: hello-app
+      annotations:
+        deployment.timestamp: "DEPLOYMENT_TIMESTAMP_PLACEHOLDER"
     spec:
       containers:
       - name: nginx
         image: nginx
         ports:
         - containerPort: 80
+        env:
+        - name: DEPLOYMENT_TIME
+          value: "DEPLOYMENT_TIMESTAMP_PLACEHOLDER"
+        - name: BUILD_ID
+          value: "BUILD_ID_PLACEHOLDER"
       tolerations:
         - key: role
           operator: Equal

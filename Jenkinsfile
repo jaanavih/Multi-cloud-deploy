@@ -215,8 +215,12 @@ node(POD_LABEL) {
                                 kubectl apply -n ${params.NAMESPACE} -f k8s/nginx-config.yaml
                             fi
                             
-                            # Then apply deployments and services
-                            kubectl apply -n ${params.NAMESPACE} -f k8s/deployment.yaml
+                            # Then apply deployments and services (with timestamp for rolling update)
+                            echo "🔄 Preparing deployment with timestamp for rolling update..."
+                            TIMESTAMP=\$(date +%Y%m%d-%H%M%S)
+                            BUILD_NUM=\${BUILD_NUMBER:-\$(date +%s)}
+                            sed "s/DEPLOYMENT_TIMESTAMP_PLACEHOLDER/\$TIMESTAMP/g; s/BUILD_ID_PLACEHOLDER/\$BUILD_NUM/g" k8s/deployment.yaml > /tmp/deployment-\$TIMESTAMP.yaml
+                            kubectl apply -n ${params.NAMESPACE} -f /tmp/deployment-\$TIMESTAMP.yaml
                             kubectl apply -n ${params.NAMESPACE} -f k8s/service.yaml
                             
                             echo "⏳ Waiting for deployment to be ready (timeout: 10 minutes)..."
@@ -262,8 +266,12 @@ node(POD_LABEL) {
                                 kubectl apply -n ${params.NAMESPACE} -f k8s/nginx-config.yaml
                             fi
                             
-                            # Then apply deployments and services
-                            kubectl apply -n ${params.NAMESPACE} -f k8s/deployment.yaml
+                            # Then apply deployments and services (with timestamp for rolling update)
+                            echo "🔄 Preparing deployment with timestamp for rolling update..."
+                            TIMESTAMP=\$(date +%Y%m%d-%H%M%S)
+                            BUILD_NUM=\${BUILD_NUMBER:-\$(date +%s)}
+                            sed "s/DEPLOYMENT_TIMESTAMP_PLACEHOLDER/\$TIMESTAMP/g; s/BUILD_ID_PLACEHOLDER/\$BUILD_NUM/g" k8s/deployment.yaml > /tmp/deployment-\$TIMESTAMP.yaml
+                            kubectl apply -n ${params.NAMESPACE} -f /tmp/deployment-\$TIMESTAMP.yaml
                             kubectl apply -n ${params.NAMESPACE} -f k8s/service.yaml
                             
                             echo "⏳ Waiting for deployment to be ready (timeout: 10 minutes)..."
