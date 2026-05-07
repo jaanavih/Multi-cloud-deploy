@@ -25,11 +25,6 @@ properties([
             name: 'ACTION',
             choices: ['deploy', 'delete'],
             description: 'Choose action (applied after you pick the cloud)'
-        ),
-        string(
-            name: 'DOWNSTREAM_DEPLOY_JOB',
-            defaultValue: '',
-            description: 'Optional: Jenkins job name to trigger instead of inline deploy (e.g. folder/deploy). Leave empty to deploy in this job.'
         )
     ])
 ])
@@ -131,55 +126,32 @@ node(POD_LABEL) {
         }
     }
 
-    stage('Optional: trigger downstream deploy job') {
-        container('tools') {
-            script {
-                def downstream = params.DOWNSTREAM_DEPLOY_JOB?.trim()
-                if (downstream) {
-                    build job: downstream, parameters: [
-                        string(name: 'CLOUD_PROVIDER', value: env.TARGET_CLOUD),
-                        string(name: 'NAMESPACE', value: params.NAMESPACE),
-                        [$class: 'ChoiceParameterValue', name: 'ACTION', value: params.ACTION],
-                        booleanParam(name: 'SHOW_COST_COMPARISON', value: false),
-                        booleanParam(name: 'USE_AI_COST_NARRATIVE', value: false)
-                    ], wait: false
-                    echo "Triggered ${downstream} with CLOUD_PROVIDER=${env.TARGET_CLOUD}"
-                } else {
-                    echo 'DOWNSTREAM_DEPLOY_JOB empty — using inline deploy path.'
-                }
-            }
-        }
-    }
+    // Downstream deploy job option removed for cleaner demo UI
 
     stage('Install Tools') {
         container('tools') {
             script {
-                def downstream = params.DOWNSTREAM_DEPLOY_JOB?.trim()
-                if (downstream) {
-                    echo 'Skipping inline install — downstream job was triggered.'
-                } else {
+                sh '''
+                apt-get update
+                apt-get install -y curl unzip git
+                curl -LO "https://dl.k8s.io/release/v1.30.0/bin/linux/amd64/kubectl"
+                chmod +x kubectl
+                mv kubectl /usr/local/bin/
+                kubectl version --client
+                '''
+                if (env.TARGET_CLOUD == 'aws') {
                     sh '''
-                    apt-get update
-                    apt-get install -y curl unzip git
-                    curl -LO "https://dl.k8s.io/release/v1.30.0/bin/linux/amd64/kubectl"
-                    chmod +x kubectl
-                    mv kubectl /usr/local/bin/
-                    kubectl version --client
+                    curl -s "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o awscliv2.zip
+                    unzip -q awscliv2.zip
+                    ./aws/install || true
+                    aws --version
                     '''
-                    if (env.TARGET_CLOUD == 'aws') {
-                        sh '''
-                        curl -s "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o awscliv2.zip
-                        unzip -q awscliv2.zip
-                        ./aws/install || true
-                        aws --version
-                        '''
-                    }
-                    if (env.TARGET_CLOUD == 'gcp') {
-                        sh '''
-                        gcloud components install gke-gcloud-auth-plugin -q || true
-                        gcloud version
-                        '''
-                    }
+                }
+                if (env.TARGET_CLOUD == 'gcp') {
+                    sh '''
+                    gcloud components install gke-gcloud-auth-plugin -q || true
+                    gcloud version
+                    '''
                 }
             }
         }
@@ -188,10 +160,7 @@ node(POD_LABEL) {
     stage('Configure Cluster Access') {
         container('tools') {
             script {
-                def downstream = params.DOWNSTREAM_DEPLOY_JOB?.trim()
-                if (downstream) {
-                    echo 'Skipping kubeconfig — downstream job will connect to the cluster.'
-                } else if (env.TARGET_CLOUD == 'aws') {
+                if (env.TARGET_CLOUD == 'aws') {
                     withCredentials([[
                         $class: 'AmazonWebServicesCredentialsBinding',
                         credentialsId: 'aws-creds'
@@ -223,10 +192,7 @@ node(POD_LABEL) {
     stage('Deploy/Delete Application') {
         container('tools') {
             script {
-                def downstream = params.DOWNSTREAM_DEPLOY_JOB?.trim()
-                if (downstream) {
-                    echo 'Skipping inline deploy — downstream job was triggered.'
-                } else if (env.TARGET_CLOUD == 'aws') {
+                if (env.TARGET_CLOUD == 'aws') {
                     withCredentials([[
                         $class: 'AmazonWebServicesCredentialsBinding',
                         credentialsId: 'aws-creds'
