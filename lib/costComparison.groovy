@@ -165,16 +165,16 @@ def printDetailedCostAnalysis(Map results, Map specs) {
 ╚════════════════════════════════════════════════════════════════════════════════╝
 
 ┌─────────────────────┬─────────────────┬─────────────────┬─────────────────────┐
-│     COMPONENT       │   AWS EKS 🟠    │   GCP GKE 🔵    │    DIFFERENCE      │
+│     COMPONENT       │   AWS EKS 🟠    │   GCP GKE 🔵    │    DIFFERENCE       │
 ├─────────────────────┼─────────────────┼─────────────────┼─────────────────────┤
-│ Cluster Management  │ \$${String.format('%11.2f', results.aws.clusterManagement)} │ \$${String.format('%11.2f', results.gcp.clusterManagement)} │ \$${String.format('%+11.2f', results.gcp.clusterManagement - results.aws.clusterManagement)} │
-│ Compute Instances   │ \$${String.format('%11.2f', results.aws.compute)} │ \$${String.format('%11.2f', results.gcp.compute)} │ \$${String.format('%+11.2f', results.gcp.compute - results.aws.compute)} │
-│ Load Balancer       │ \$${String.format('%11.2f', results.aws.loadBalancer)} │ \$${String.format('%11.2f', results.gcp.loadBalancer)} │ \$${String.format('%+11.2f', results.gcp.loadBalancer - results.aws.loadBalancer)} │
-│ Storage (Disks)     │ \$${String.format('%11.2f', results.aws.storage)} │ \$${String.format('%11.2f', results.gcp.storage)} │ \$${String.format('%+11.2f', results.gcp.storage - results.aws.storage)} │
-│ Data Transfer       │ \$${String.format('%11.2f', results.aws.dataTransfer)} │ \$${String.format('%11.2f', results.gcp.dataTransfer)} │ \$${String.format('%+11.2f', results.gcp.dataTransfer - results.aws.dataTransfer)} │
-│ Networking          │ \$${String.format('%11.2f', results.aws.networking)} │ \$${String.format('%11.2f', results.gcp.networking)} │ \$${String.format('%+11.2f', results.gcp.networking - results.aws.networking)} │
+│ ${'Cluster Management'.padRight(19)} │ \$${String.format('%13.2f', results.aws.clusterManagement)} │ \$${String.format('%13.2f', results.gcp.clusterManagement)} │ \$${String.format('%+13.2f', results.gcp.clusterManagement - results.aws.clusterManagement)} │
+│ ${'Compute Instances'.padRight(19)} │ \$${String.format('%13.2f', results.aws.compute)} │ \$${String.format('%13.2f', results.gcp.compute)} │ \$${String.format('%+13.2f', results.gcp.compute - results.aws.compute)} │
+│ ${'Load Balancer'.padRight(19)} │ \$${String.format('%13.2f', results.aws.loadBalancer)} │ \$${String.format('%13.2f', results.gcp.loadBalancer)} │ \$${String.format('%+13.2f', results.gcp.loadBalancer - results.aws.loadBalancer)} │
+│ ${'Storage (Disks)'.padRight(19)} │ \$${String.format('%13.2f', results.aws.storage)} │ \$${String.format('%13.2f', results.gcp.storage)} │ \$${String.format('%+13.2f', results.gcp.storage - results.aws.storage)} │
+│ ${'Data Transfer'.padRight(19)} │ \$${String.format('%13.2f', results.aws.dataTransfer)} │ \$${String.format('%13.2f', results.gcp.dataTransfer)} │ \$${String.format('%+13.2f', results.gcp.dataTransfer - results.aws.dataTransfer)} │
+│ ${'Networking'.padRight(19)} │ \$${String.format('%13.2f', results.aws.networking)} │ \$${String.format('%13.2f', results.gcp.networking)} │ \$${String.format('%+13.2f', results.gcp.networking - results.aws.networking)} │
 ├─────────────────────┼─────────────────┼─────────────────┼─────────────────────┤
-│ 🏆 TOTAL MONTHLY    │ \$${String.format('%11.2f', awsTotal)} │ \$${String.format('%11.2f', gcpTotal)} │ \$${String.format('%+11.2f', gcpTotal - awsTotal)} │
+│ ${'🏆 TOTAL MONTHLY'.padRight(19)} │ \$${String.format('%13.2f', awsTotal)} │ \$${String.format('%13.2f', gcpTotal)} │ \$${String.format('%+13.2f', gcpTotal - awsTotal)} │
 └─────────────────────┴─────────────────┴─────────────────┴─────────────────────┘"""
 
     // Generate cost visualization chart
