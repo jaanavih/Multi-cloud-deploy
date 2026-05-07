@@ -207,9 +207,29 @@ node(POD_LABEL) {
                     ]]) {
                         if (params.ACTION == 'deploy') {
                             sh """
+                            echo "🚀 Applying Kubernetes manifests..."
                             kubectl apply -n ${params.NAMESPACE} -f k8s/deployment.yaml
                             kubectl apply -n ${params.NAMESPACE} -f k8s/service.yaml
+                            
+                            echo "⏳ Waiting for deployment to be ready (timeout: 10 minutes)..."
+                            kubectl rollout status deployment/hello-app -n ${params.NAMESPACE} --timeout=600s
+                            
+                            echo "📋 Final deployment status:"
                             kubectl get pods,svc -n ${params.NAMESPACE}
+                            
+                            echo "🔍 Checking application readiness..."
+                            kubectl get pods -n ${params.NAMESPACE} -l app=hello-app -o wide
+                            
+                            echo "🩺 Troubleshooting any issues..."
+                            # Check if pods are still not ready after rollout
+                            NOT_READY=\$(kubectl get pods -n ${params.NAMESPACE} -l app=hello-app --no-headers | grep -v "1/1.*Running" | wc -l)
+                            if [ \$NOT_READY -gt 0 ]; then
+                                echo "⚠️  Found \$NOT_READY pods not ready. Investigating..."
+                                kubectl describe pods -n ${params.NAMESPACE} -l app=hello-app | grep -A 10 "Events:"
+                                kubectl get events -n ${params.NAMESPACE} --sort-by='.lastTimestamp' | tail -10
+                            else
+                                echo "✅ All pods are ready and running!"
+                            fi
                             """
                         }
                         if (params.ACTION == 'delete') {
