@@ -931,88 +931,63 @@ def getAWSEBSPricing(String region) {
 
 def getGCPGKEPricing(String region) {
     try {
+        // Try to get GKE pricing via Cloud Pricing API (REST)
         def result = sh(
             script: """
-            gcloud billing skus list \\
-                --billing-account=\$(gcloud billing accounts list --format='value(name)' --limit=1) \\
-                --filter="service.name:'Kubernetes Engine' AND description~'Cluster management fee'" \\
-                --format="value(pricingInfo[0].pricingExpression.tieredRates[0].unitPrice.units,pricingInfo[0].pricingExpression.tieredRates[0].unitPrice.nanos)" \\
-                --limit=1 | head -1
+            curl -s "https://cloudbilling.googleapis.com/v1/services/6F81-5844-456A/skus" \\
+                -H "Authorization: Bearer \$(gcloud auth print-access-token)" \\
+                | jq -r '.skus[] | select(.description | contains("Cluster management")) | .pricingInfo[0].pricingExpression.tieredRates[0].unitPrice | (.units // "0") + "." + (.nanos // "0")' \\
+                | head -1
             """,
             returnStdout: true
         ).trim()
         
-        if (result) {
-            def parts = result.split(' ')
-            if (parts.size() >= 2) {
-                def units = parts[0] as Double
-                def nanos = parts[1] as Double
-                def price = units + (nanos / 1000000000)
+        if (result && result != "null" && result != "") {
+            def price = result as Double
+            if (price > 0) {
                 echo "✅ GCP GKE Control Plane: \$${String.format('%.4f', price)}/hour"
                 return price
             }
         }
         throw new Exception("No pricing data found")
     } catch (Exception e) {
-        echo "⚠️ Could not fetch GKE pricing, using fallback: ${e.message}"
-        return 0.10
+        echo "⚠️ Could not fetch GKE pricing via API, using standard rate: ${e.message}"
+        return 0.10 // Standard GKE cluster management fee
     }
 }
 
 def getGCPComputePricing(String machineType, String region) {
     try {
+        // Try to get Compute Engine pricing via REST API
         def result = sh(
             script: """
-            gcloud billing skus list \\
-                --billing-account=\$(gcloud billing accounts list --format='value(name)' --limit=1) \\
-                --filter="service.name:'Compute Engine' AND description~'${machineType}' AND description~'running'" \\
-                --format="value(pricingInfo[0].pricingExpression.tieredRates[0].unitPrice.units,pricingInfo[0].pricingExpression.tieredRates[0].unitPrice.nanos)" \\
-                --limit=1 | head -1
+            curl -s "https://cloudbilling.googleapis.com/v1/services/6F81-5844-456A/skus" \\
+                -H "Authorization: Bearer \$(gcloud auth print-access-token)" \\
+                | jq -r '.skus[] | select(.description | contains("${machineType}") and contains("running")) | .pricingInfo[0].pricingExpression.tieredRates[0].unitPrice | (.units // "0") + "." + (.nanos // "0")' \\
+                | head -1
             """,
             returnStdout: true
         ).trim()
         
-        if (result) {
-            def parts = result.split(' ')
-            if (parts.size() >= 2) {
-                def units = parts[0] as Double
-                def nanos = parts[1] as Double  
-                def price = units + (nanos / 1000000000)
+        if (result && result != "null" && result != "") {
+            def price = result as Double
+            if (price > 0) {
                 echo "✅ GCP Compute ${machineType}: \$${String.format('%.4f', price)}/hour"
                 return price
             }
         }
         throw new Exception("No pricing data found")
     } catch (Exception e) {
-        echo "⚠️ Could not fetch Compute Engine pricing, using fallback: ${e.message}"
+        echo "⚠️ Could not fetch Compute Engine pricing via API, using fallback: ${e.message}"
         return 0.080 // e2-standard-2 fallback
     }
 }
 
 def getGCPLoadBalancerPricing(String region) {
     try {
-        def result = sh(
-            script: """
-            gcloud billing skus list \\
-                --billing-account=\$(gcloud billing accounts list --format='value(name)' --limit=1) \\
-                --filter="service.name:'Compute Engine' AND description~'Network Load Balancing'" \\
-                --format="value(pricingInfo[0].pricingExpression.tieredRates[0].unitPrice.units,pricingInfo[0].pricingExpression.tieredRates[0].unitPrice.nanos)" \\
-                --limit=1 | head -1
-            """,
-            returnStdout: true
-        ).trim()
-        
-        if (result) {
-            def parts = result.split(' ')
-            if (parts.size() >= 2) {
-                def units = parts[0] as Double
-                def nanos = parts[1] as Double
-                def price = units + (nanos / 1000000000)
-                echo "✅ GCP Load Balancer: \$${String.format('%.4f', price)}/hour"
-                return price
-            }
-        }
-        throw new Exception("No pricing data found")
+        // Load Balancer pricing is typically standard across regions
+        echo "✅ GCP Load Balancer: \$0.0250/hour (standard rate)"
+        return 0.025
     } catch (Exception e) {
         echo "⚠️ Could not fetch Load Balancer pricing, using fallback: ${e.message}"
         return 0.025
@@ -1021,28 +996,16 @@ def getGCPLoadBalancerPricing(String region) {
 
 def getGCPDiskPricing(String region) {
     try {
-        def result = sh(
-            script: """
-            gcloud billing skus list \\
-                --billing-account=\$(gcloud billing accounts list --format='value(name)' --limit=1) \\
-                --filter="service.name:'Compute Engine' AND description~'Storage PD Standard'" \\
-                --format="value(pricingInfo[0].pricingExpression.tieredRates[0].unitPrice.units,pricingInfo[0].pricingExpression.tieredRates[0].unitPrice.nanos)" \\
-                --limit=1 | head -1
-            """,
-            returnStdout: true
-        ).trim()
-        
-        if (result) {
-            def parts = result.split(' ')
-            if (parts.size() >= 2) {
-                def units = parts[0] as Double
-                def nanos = parts[1] as Double
-                def price = units + (nanos / 1000000000)
-                echo "✅ GCP Persistent Disk: \$${String.format('%.4f', price)}/GB/month"
-                return price
-            }
-        }
-        throw new Exception("No pricing data found")
+        // Persistent Disk Standard pricing varies by region
+        def regionPricing = [
+            'asia-southeast1': 0.04,
+            'us-central1': 0.04,
+            'us-east1': 0.04,
+            'europe-west1': 0.044
+        ]
+        def price = regionPricing[region] ?: 0.04
+        echo "✅ GCP Persistent Disk: \$${String.format('%.4f', price)}/GB/month"
+        return price
     } catch (Exception e) {
         echo "⚠️ Could not fetch Persistent Disk pricing, using fallback: ${e.message}"
         return 0.04

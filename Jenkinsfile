@@ -70,6 +70,25 @@ node(POD_LABEL) {
                 } else {
                     try {
                         echo '🔍 Analyzing deployment costs using real-time AWS & GCP APIs...'
+                        
+                        // Install required tools for API calls
+                        sh '''
+                        echo "🛠️ Installing tools for pricing APIs..."
+                        apt-get update -qq
+                        apt-get install -y -qq jq curl unzip
+                        
+                        # Install AWS CLI
+                        if ! command -v aws &> /dev/null; then
+                            curl -s "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o awscliv2.zip
+                            unzip -q awscliv2.zip
+                            ./aws/install
+                        fi
+                        
+                        aws --version
+                        jq --version
+                        gcloud version
+                        '''
+                        
                         def costConfig = [
                             awsRegion: 'ap-southeast-1',
                             gcpRegion: 'asia-southeast1',
