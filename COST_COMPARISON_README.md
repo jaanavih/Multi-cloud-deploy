@@ -1,46 +1,28 @@
 # 💰 Multi-Cloud Cost Comparison Feature
 
-This project now includes intelligent cost comparison capabilities that help you make informed decisions about where to deploy your applications across AWS and GCP.
+This project includes cost comparison capabilities that help you make informed decisions about where to deploy your applications across AWS EKS and GCP GKE.
 
 ## 🌟 Features
 
 - **Pre-deployment cost analysis** - See costs before you deploy
-- **Smart provider selection** - Automatically choose the cheapest option
-- **Interactive HTML reports** - Beautiful cost breakdowns and visualizations
-- **Real-time recommendations** - Get optimization tips based on your workload
-- **Multiple deployment modes** - Standalone analysis or integrated pipeline
+- **Interactive HTML reports** - Beautiful cost breakdowns and visualizations  
+- **Multiple deployment modes** - Cost-first workflows or traditional parameter-based
 
 ## 🚀 Quick Start
 
-### Option 1: Enhanced Pipeline (Recommended)
-Use the enhanced Jenkinsfile that includes smart cost analysis:
+### Default Pipeline (Recommended)
+Use the root **`Jenkinsfile`** (Option A):
 
-```bash
-# Use Jenkinsfile-enhanced for your pipeline
-# It includes auto-provider selection and cost optimization
-```
+1. **Build with Parameters** → set `SHOW_COST_COMPARISON=true`
+2. Build starts → cost reports published to build page
+3. **Review HTML report** → click **Continue** → choose **aws** or **gcp**
+4. Deploy continues to selected cloud
 
-**Key Parameters:**
-- `CLOUD_PROVIDER`: Choose `auto-select` for cost-based selection
-- `SHOW_COST_COMPARISON`: Enable cost analysis (recommended)
-- `WORKLOAD_SIZE`: Affects cost calculations (small/medium/large)
-- `ACTION`: Choose `cost-analysis-only` for analysis without deployment
+### Legacy Pipeline  
+Use **`Jenkinsfile.parameters-first`** to pick cloud on first parameter screen.
 
-### Option 2: Standalone Cost Analysis
-Run cost comparison without deploying:
-
-```bash
-# Create a pipeline job using cost-comparison-pipeline.jenkinsfile
-# Perfect for planning and budgeting
-```
-
-### Option 3: Integrated Analysis
-Your existing pipeline now supports cost comparison:
-
-```bash
-# Set SHOW_COST_COMPARISON=true in build parameters
-# Cost analysis runs before deployment selection
-```
+### Cost-Only Analysis
+Use **`Jenkinsfile.cost-only`** for analysis without deployment.
 
 ## 📊 What Gets Analyzed
 
@@ -60,27 +42,6 @@ The cost comparison includes:
 - Persistent disk storage (20GB per instance)
 - Data transfer and networking
 
-## 🎯 Smart Features
-
-### Auto Provider Selection
-Set `CLOUD_PROVIDER=auto-select` and the pipeline will:
-1. Calculate costs for both AWS and GCP
-2. Automatically select the cheaper option
-3. Deploy to the most cost-effective cloud
-
-### Cost Optimization Mode
-Enable `COST_OPTIMIZATION_MODE=true` for:
-- Detailed optimization recommendations
-- Instance type suggestions
-- Savings plan recommendations
-- Resource utilization tips
-
-### Workload-Based Calculations
-Choose your workload size for accurate estimates:
-- **Small**: 1-2 replicas, basic resources
-- **Medium**: 3-5 replicas, standard resources  
-- **Large**: 6+ replicas, high-performance resources
-
 ## 📈 Sample Cost Comparison
 
 ```
@@ -91,55 +52,39 @@ Choose your workload size for accurate estimates:
 ║  GCP GKE (asia-southeast1):    $78.30/month                                 ║
 ║                                                                              ║
 ║  💡 GCP is cheaper by $17.20/month (18% savings)                           ║
-║  🎉 Annual savings potential: $206.40                                        ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 ```
 
 ## 🔧 Setup Instructions
 
-### 1. Global Pipeline Library (optional)
+### 1. Jenkins Configuration (minimal)
 
-The default **`Jenkinsfile`** does **not** require a Global Pipeline Library. Cost logic lives in **`lib/costComparison.groovy`** and is loaded with **`load`** after **`checkout scm`**.
+1. Pipeline job: **Pipeline script from SCM** → your Git repo and branch
+2. **Script Path:** `Jenkinsfile` (or `Jenkinsfile.parameters-first` / `Jenkinsfile.cost-only` as needed)
+3. **No Global Pipeline Library** required (cost logic loads from `lib/costComparison.groovy`)
 
-You only need **Global Pipeline Libraries → `cost-comparison-library`** if you use a custom pipeline that still calls `@Library('cost-comparison-library')`.
-
-```bash
-# Optional: run the setup script for other hints
-./setup-jenkins-library.sh
-```
-
-### 2. Jenkins configuration (minimal)
-
-1. Pipeline job: **Pipeline script from SCM** → your Git repo and branch.
-2. **Script Path:** `Jenkinsfile` (or `Jenkinsfile.parameters-first` / `Jenkinsfile.cost-only` as needed).
-3. **No** shared library entry required for the default `Jenkinsfile`.
-
-### 3. Required plugins
+### 2. Required Plugins
 
 Install these Jenkins plugins:
 - Pipeline: Groovy
-- HTML Publisher
+- HTML Publisher  
 - Kubernetes (existing)
 - AWS Credentials (existing)
 
-### 4. Test the Setup
+### 3. Test the Setup
 1. Create a new pipeline job
-2. Use `cost-comparison-pipeline.jenkinsfile`
-3. Run to verify cost analysis works
+2. Set **Script Path** to `Jenkinsfile`
+3. Run **Build with Parameters** with `SHOW_COST_COMPARISON=true`
 
 ## 📁 File Structure
 
 ```
 ├── lib/
-│   └── costComparison.groovy          # Loaded via load() after checkout (no global library)
-├── scripts/
-│   ├── ai_cost_comparison.py
-│   └── requirements.txt
-├── Jenkinsfile                         # Default: Option A (cost → input → deploy)
-├── Jenkinsfile.cost-gate               # Symlink → Jenkinsfile
+│   └── costComparison.groovy          # Cost calculation logic (loaded after checkout)
+├── Jenkinsfile                         # Default: cost → input → deploy
+├── Jenkinsfile.cost-gate               # Symlink → Jenkinsfile  
 ├── Jenkinsfile.parameters-first        # Legacy: CLOUD_PROVIDER on first screen
 ├── Jenkinsfile.cost-only               # Cost-only job
-├── Jenkinsfile-enhanced                # Enhanced experiment (optional)
 ├── cost-comparison-pipeline.jenkinsfile
 ├── setup-jenkins-library.sh
 └── COST_COMPARISON_README.md
@@ -153,7 +98,6 @@ The generated HTML reports include:
 - **Visual recommendations**
 - **Mobile-responsive design**
 - **Savings calculations**
-- **Optimization tips**
 
 ## ⚙️ Customization
 
@@ -165,18 +109,11 @@ Modify `lib/costComparison.groovy` to update:
 - Additional cost factors
 
 ### Add New Cloud Providers
-Extend the shared library to support:
+Extend the library to support:
 - Microsoft Azure
 - Alibaba Cloud
 - IBM Cloud
 - Digital Ocean
-
-### Custom Cost Factors
-Add your specific costs:
-- Monitoring and logging
-- Backup and disaster recovery
-- Security and compliance tools
-- Support plans
 
 ## 🔍 Cost Calculation Logic
 
@@ -191,7 +128,6 @@ costs.storage = 0.10 * storageGB * instanceCount
 
 ### Scaling Factors
 - **Replicas**: More replicas = more instances needed
-- **Workload Size**: Affects instance type selection
 - **Region**: Different regions have different pricing
 - **Service Type**: LoadBalancer vs ClusterIP affects costs
 
@@ -213,13 +149,13 @@ costs.storage = 0.10 * storageGB * instanceCount
 
 ## Cost-first workflows (reports before picking AWS/GCP)
 
-Jenkins **cannot** render HTML *before* the first “Build with Parameters” screen. Practical patterns:
+Jenkins **cannot** render HTML *before* the first "Build with Parameters" screen. Practical patterns:
 
 ### A — One job: analyze → pause → choose cloud (`input`)
 
 - **Default pipeline:** root **`Jenkinsfile`** (Option A). CI jobs should use **Script Path** `Jenkinsfile`.
 - **`Jenkinsfile.cost-gate`** is a **symlink** to `Jenkinsfile` so existing jobs that pointed at `Jenkinsfile.cost-gate` keep working.
-- Flow: Checkout → cost HTML (+ optional AI) → **`input()`** with AWS/GCP → install tools → kubeconfig → deploy/delete **in the same build**.
+- Flow: Checkout → cost HTML → **`input()`** with AWS/GCP → install tools → kubeconfig → deploy/delete **in the same build**.
 - Optional **`DOWNSTREAM_DEPLOY_JOB`**: if set, triggers your existing deploy job with `CLOUD_PROVIDER`, `NAMESPACE`, `ACTION`, and skips inline kubectl stages.
 
 **Legacy (pick cloud on the first parameter screen):** use **`Jenkinsfile.parameters-first`**.
@@ -229,43 +165,10 @@ Jenkins **cannot** render HTML *before* the first “Build with Parameters” sc
 1. Job **`cost-analysis`** uses **`Jenkinsfile.cost-only`** (artifacts + HTML only).
 2. After review, run **`multi-cloud-deploy`** (your **`Jenkinsfile`**) with parameters — including **`CLOUD_PROVIDER`**.
 
-### AI usage cost (money)
-
-- **Jenkins**: no extra license; you already pay for agents/cluster.
-- **LLM API**: charged **per token** (request + response). For `gpt-4o-mini` with a short JSON reply, expect **well under a typical cent per run** in many setups — **verify live totals** on [OpenAI API pricing](https://openai.com/api/pricing/) (and your org’s spend dashboard).
-- **Anthropic**: same idea — see their pricing page if you use Claude.
-
-Infra savings tip: bake **`google/cloud-sdk` + Python deps** into a **custom agent image** so you skip `apt-get`/`pip` every build.
-
 ### Where installs run
 
-- With **`podTemplate`**, **`apt-get`**, **`pip`**, **`kubectl`**, and **AWS CLI** run inside the **ephemeral Kubernetes agent Pod** (here the **`tools` container**), **not** necessarily on the Jenkins controller Pod.
+- With **`podTemplate`**, **`apt-get`**, **`kubectl`**, and **AWS CLI** run inside the **ephemeral Kubernetes agent Pod** (here the **`tools` container**), **not** on the Jenkins controller Pod.
 - The controller only orchestrates unless you run builds on the controller (`master` label).
-
-## 🤖 AI narrative (OpenAI / Anthropic)
-
-The repo includes `scripts/ai_cost_comparison.py`, which:
-
-- Computes **deterministic** monthly USD estimates from `k8s/` (aligned with `lib/costComparison.groovy`).
-- Sends that baseline JSON to an LLM for **narrative only** (drivers, exclusions, optimization ideas). Final totals in HTML always come from the baseline so prices are not hallucinated.
-
-**Jenkins**
-
-1. Add a **Secret text** credential with ID `openai-api-key` (your API key).
-2. Enable build parameter **USE_AI_COST_NARRATIVE** (default on).
-3. Open build artifacts / **🤖 AI Cost Narrative** HTML report.
-
-If the credential is missing, the script runs in **baseline-only** mode and still writes `cost-comparison-ai-report.html`.
-
-**Local**
-
-```bash
-python3 -m venv .venv && . .venv/bin/activate
-pip install -r scripts/requirements.txt
-export OPENAI_API_KEY="sk-..."
-python3 scripts/ai_cost_comparison.py --out-dir ./out
-# Or: export ANTHROPIC_API_KEY and run with --provider anthropic
-```
 
 ## 🆘 Troubleshooting
 
@@ -276,7 +179,6 @@ python3 scripts/ai_cost_comparison.py --out-dir ./out
 - If you still see this error, your Jenkins job may be pinned to an old branch/commit, or a forked Jenkinsfile still has `@Library`.
 
 **Cost Comparison Fails**
-- Check Jenkins shared library configuration
 - Verify repository access and credentials
 - Ensure required plugins are installed
 
@@ -291,7 +193,6 @@ python3 scripts/ai_cost_comparison.py --out-dir ./out
 - Verify report file is being generated
 
 **Auto-Selection Not Working**
-- Confirm `CLOUD_PROVIDER=auto-select` parameter
 - Check cost calculation is completing successfully
 - Review Jenkins logs for error messages
 
@@ -315,8 +216,10 @@ For issues or questions:
 - **v1.1**: Smart provider selection
 - **v1.2**: Enhanced HTML reports
 - **v1.3**: Cost optimization recommendations
-- **v1.4**: AI narrative layer (`scripts/ai_cost_comparison.py`) with Jenkins integration
-- **v1.6**: Remove Global Pipeline Library requirement — `lib/costComparison.groovy` + `load()` after checkout
+- **v1.4**: AI narrative layer (removed in v1.7)
+- **v1.5**: Option A default with input() gate
+- **v1.6**: Remove Global Pipeline Library requirement
+- **v1.7**: Remove AI components, simplify to core cost comparison
 
 ---
 

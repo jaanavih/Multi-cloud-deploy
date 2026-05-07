@@ -1,20 +1,17 @@
 # Jenkins Cost Comparison Quick Reference
 
-## No Global Pipeline Library required
+## Simple setup (no Global Pipeline Library required)
 
-Default **`Jenkinsfile`** loads **`lib/costComparison.groovy`** with `load` after `checkout scm`.  
-Configure a Global Library named **`cost-comparison-library`** only if you use a custom pipeline that still references `@Library`.
+Default **`Jenkinsfile`** loads **`lib/costComparison.groovy`** after `checkout scm`.
 
 ## Files
 
 - `lib/costComparison.groovy` — cost estimates + HTML (loaded via `load`)
-- `scripts/ai_cost_comparison.py` — baseline + optional LLM narrative
 - `Jenkinsfile` — Option A: cost → `input()` → deploy
 - `Jenkinsfile.cost-gate` — symlink → `Jenkinsfile`
 - `Jenkinsfile.parameters-first` — legacy: `CLOUD_PROVIDER` on first screen
 - `Jenkinsfile.cost-only` — analysis-only
 - `cost-comparison-pipeline.jenkinsfile` — standalone cost pipeline
-- `setup-jenkins-library.sh` — optional setup hints
 
 ## Usage in a pipeline
 

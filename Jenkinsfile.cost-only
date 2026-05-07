@@ -10,11 +10,6 @@ properties([
             defaultValue: true,
             description: 'Run deterministic cost comparison'
         ),
-        booleanParam(
-            name: 'USE_AI_COST_NARRATIVE',
-            defaultValue: true,
-            description: 'Run scripts/ai_cost_comparison.py (credential openai-api-key)'
-        )
     ])
 ])
 
@@ -70,44 +65,6 @@ node(POD_LABEL) {
                         reportName: '💰 Cost Comparison Report',
                         reportTitles: 'Multi-Cloud Cost Analysis'
                     ])
-                    if (params.USE_AI_COST_NARRATIVE) {
-                        sh '''
-                            apt-get update -qq
-                            apt-get install -y -qq python3-pip python3-venv
-                            python3 -m venv .ai-venv
-                            . .ai-venv/bin/activate
-                            pip install -q -r scripts/requirements.txt
-                        '''
-                        try {
-                            withCredentials([
-                                string(credentialsId: 'openai-api-key', variable: 'OPENAI_API_KEY')
-                            ]) {
-                                sh '''
-                                    . .ai-venv/bin/activate
-                                    export AI_COST_PROVIDER=openai
-                                    export AWS_COST_REGION=ap-southeast-1
-                                    export GCP_COST_REGION=asia-southeast1
-                                    python3 scripts/ai_cost_comparison.py --out-dir .
-                                '''
-                            }
-                        } catch (Exception credErr) {
-                            echo "⚠️  OpenAI credential missing (${credErr.message}); baseline-only."
-                            sh '''
-                                . .ai-venv/bin/activate
-                                python3 scripts/ai_cost_comparison.py --provider none --out-dir .
-                            '''
-                        }
-                        publishHTML([
-                            allowMissing: true,
-                            alwaysLinkToLastBuild: true,
-                            keepAll: true,
-                            reportDir: '.',
-                            reportFiles: 'cost-comparison-ai-report.html',
-                            reportName: '🤖 AI Cost Narrative',
-                            reportTitles: 'Baseline + LLM narrative'
-                        ])
-                        archiveArtifacts artifacts: 'cost-comparison-ai.json,cost-comparison-ai-report.html', fingerprint: true
-                    }
                     def cheaperProvider = costResults.aws.total > costResults.gcp.total ? 'GCP' : 'AWS'
                     def savings = Math.abs(costResults.aws.total - costResults.gcp.total)
                     currentBuild.description = "💰 Cost-only | ${cheaperProvider} cheaper ≈ \$${String.format("%.2f", savings)}/mo — run deploy job next"
