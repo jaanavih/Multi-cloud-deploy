@@ -13,16 +13,10 @@ Map runCostComparison(Map config) {
     def results = [:]
 
     try {
-        echo '🔍 Starting API-only cost comparison analysis...'
-        echo '⚠️  API-only mode: Will fail if pricing APIs are unavailable'
+        echo '🔍 Starting comprehensive cost comparison analysis...'
 
         def resourceSpecs = getResourceSpecs(config)
-        
-        // API-only mode - no fallbacks allowed
-        echo '🌐 Fetching AWS pricing via APIs (no fallbacks)...'
         results.aws = calculateAWSCosts(resourceSpecs, config)
-        
-        echo '🌐 Fetching GCP pricing via APIs (no fallbacks)...'  
         results.gcp = calculateGCPCosts(resourceSpecs, config)
 
         // Generate beautiful console output
@@ -32,13 +26,10 @@ Map runCostComparison(Map config) {
         writeFile file: 'cost-comparison-report.html', text: report
         archiveArtifacts artifacts: 'cost-comparison-report.html', fingerprint: true
 
-        echo '💰 API-only cost comparison complete! All data fetched from live APIs.'
-        echo '✅ AWS pricing: Real-time from AWS pricing endpoints'
-        echo '✅ GCP pricing: Real-time from GCP Cloud Billing API'
+        echo '💰 Cost comparison complete. Detailed HTML report saved to cost-comparison-report.html'
         return results
     } catch (Exception e) {
-        echo "❌ API-only cost comparison failed: ${e.message}"
-        echo "💡 This is expected if proper API credentials are not configured"
+        echo "❌ Error during cost comparison: ${e.message}"
         throw e
     }
 }
@@ -85,102 +76,69 @@ def extractServiceType(String content) {
 
 def calculateAWSCosts(Map specs, Map config) {
     def costs = [:]
-    def region = config.awsRegion ?: 'ap-southeast-1'
+    costs.clusterManagement = 0.10 * specs.hoursPerMonth
+
     def instanceType = 't3.medium'
     def instancesNeeded = Math.ceil((double)(specs.replicas / 4))
-    
-    echo "🔍 Fetching real-time AWS pricing for region: ${region}"
-    
-    try {
-        // Get EKS Control Plane pricing
-        costs.clusterManagement = getAWSEKSPricing(region) * specs.hoursPerMonth
-        
-        // Get EC2 instance pricing
-        def instancePricePerHour = getAWSEC2Pricing(instanceType, region)
-        costs.compute = instancePricePerHour * instancesNeeded * specs.hoursPerMonth
-        
-        // Get Load Balancer pricing
-        if (specs.serviceType == 'LoadBalancer') {
-            costs.loadBalancer = getAWSLoadBalancerPricing(region) * specs.hoursPerMonth
-            costs.dataTransfer = 5.0 // Data transfer estimate
-        } else {
-            costs.loadBalancer = 0
-            costs.dataTransfer = 0
-        }
-        
-        // Get EBS Storage pricing
-        def ebsPricePerGB = getAWSEBSPricing(region)
-        costs.storage = ebsPricePerGB * 20 * instancesNeeded
-        costs.networking = 2.0 // Networking estimate
-        
-    } catch (Exception e) {
-        echo "⚠️ AWS API pricing failed, falling back to static prices: ${e.message}"
-        // Fallback to static pricing
-        costs.clusterManagement = 0.10 * specs.hoursPerMonth
-        costs.compute = 0.0416 * instancesNeeded * specs.hoursPerMonth
-        costs.loadBalancer = specs.serviceType == 'LoadBalancer' ? 0.0225 * specs.hoursPerMonth : 0
-        costs.dataTransfer = specs.serviceType == 'LoadBalancer' ? 5.0 : 0
-        costs.storage = 0.10 * 20 * instancesNeeded
-        costs.networking = 2.0
+
+    def instanceCosts = [
+        't3.micro'  : 0.0104,
+        't3.small'  : 0.0208,
+        't3.medium' : 0.0416,
+        't3.large'  : 0.0832
+    ]
+
+    costs.compute = instanceCosts[instanceType] * instancesNeeded * specs.hoursPerMonth
+
+    if (specs.serviceType == 'LoadBalancer') {
+        costs.loadBalancer = 0.0225 * specs.hoursPerMonth
+        costs.dataTransfer = 5.0
+    } else {
+        costs.loadBalancer = 0
+        costs.dataTransfer = 0
     }
-    
+
+    costs.storage = 0.10 * 20 * instancesNeeded
+    costs.networking = 2.0
     costs.total = costs.clusterManagement + costs.compute + costs.loadBalancer +
         costs.dataTransfer + costs.storage + costs.networking
     costs.currency = 'USD'
-    costs.region = region
-    costs.instanceType = instanceType
-    costs.instancesNeeded = instancesNeeded
+    costs.region = config.awsRegion ?: 'ap-southeast-1'
 
     return costs
 }
 
 def calculateGCPCosts(Map specs, Map config) {
     def costs = [:]
-    def region = config.gcpRegion ?: 'asia-southeast1'
+    costs.clusterManagement = 0.10 * specs.hoursPerMonth
+
     def machineType = 'e2-standard-2'
     def instancesNeeded = Math.ceil((double)(specs.replicas / 4))
-    
-    echo "🔍 Fetching real-time GCP pricing for region: ${region}"
-    
-    try {
-        // Get GKE Control Plane pricing
-        costs.clusterManagement = getGCPGKEPricing(region) * specs.hoursPerMonth
-        
-        // Get Compute Engine pricing
-        def machinePricePerHour = getGCPComputePricing(machineType, region)
-        costs.compute = machinePricePerHour * instancesNeeded * specs.hoursPerMonth
-        
-        // Get Load Balancer pricing
-        if (specs.serviceType == 'LoadBalancer') {
-            costs.loadBalancer = getGCPLoadBalancerPricing(region) * specs.hoursPerMonth
-            costs.dataTransfer = 4.0 // Data transfer estimate
-        } else {
-            costs.loadBalancer = 0
-            costs.dataTransfer = 0
-        }
-        
-        // Get Persistent Disk pricing
-        def diskPricePerGB = getGCPDiskPricing(region)
-        costs.storage = diskPricePerGB * 20 * instancesNeeded
-        costs.networking = 1.5 // Networking estimate
-        
-    } catch (Exception e) {
-        echo "⚠️ GCP API pricing failed, falling back to static prices: ${e.message}"
-        // Fallback to static pricing
-        costs.clusterManagement = 0.10 * specs.hoursPerMonth
-        costs.compute = 0.080 * instancesNeeded * specs.hoursPerMonth
-        costs.loadBalancer = specs.serviceType == 'LoadBalancer' ? 0.025 * specs.hoursPerMonth : 0
-        costs.dataTransfer = specs.serviceType == 'LoadBalancer' ? 4.0 : 0
-        costs.storage = 0.04 * 20 * instancesNeeded
-        costs.networking = 1.5
+
+    def machineCosts = [
+        'e2-micro'        : 0.006,
+        'e2-small'        : 0.020,
+        'e2-medium'       : 0.040,
+        'e2-standard-2'   : 0.080,
+        'e2-standard-4'   : 0.160
+    ]
+
+    costs.compute = machineCosts[machineType] * instancesNeeded * specs.hoursPerMonth
+
+    if (specs.serviceType == 'LoadBalancer') {
+        costs.loadBalancer = 0.025 * specs.hoursPerMonth
+        costs.dataTransfer = 4.0
+    } else {
+        costs.loadBalancer = 0
+        costs.dataTransfer = 0
     }
-    
+
+    costs.storage = 0.04 * 20 * instancesNeeded
+    costs.networking = 1.5
     costs.total = costs.clusterManagement + costs.compute + costs.loadBalancer +
         costs.dataTransfer + costs.storage + costs.networking
     costs.currency = 'USD'
-    costs.region = region
-    costs.machineType = machineType
-    costs.instancesNeeded = instancesNeeded
+    costs.region = config.gcpRegion ?: 'asia-southeast1'
 
     return costs
 }
@@ -798,343 +756,5 @@ def generateCostReport(Map results) {
     return html
 }
 
-// ========================================
-// AWS PRICING API FUNCTIONS
-// ========================================
-
-def getAWSEKSPricing(String region) {
-    try {
-        def locationMapping = [
-            'us-east-1': 'US East (N. Virginia)',
-            'us-west-2': 'US West (Oregon)', 
-            'eu-west-1': 'Europe (Ireland)',
-            'ap-southeast-1': 'Asia Pacific (Singapore)',
-            'ap-northeast-1': 'Asia Pacific (Tokyo)'
-        ]
-        
-        def location = locationMapping[region] ?: 'Asia Pacific (Singapore)'
-        
-        // AWS Pricing API requires no specific credentials - it's public data
-        // Use anonymous access with basic AWS configuration
-        def result = sh(
-            script: """
-            # Configure anonymous AWS access for pricing API (public data)
-            export AWS_DEFAULT_REGION=us-east-1
-            export AWS_ACCESS_KEY_ID=dummy
-            export AWS_SECRET_ACCESS_KEY=dummy
-            
-            # Use public pricing endpoint directly
-            curl -s "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonEKS/current/index.json" \\
-                | jq -r '.products | to_entries[] | select(.value.attributes.location == "${location}") | .key' \\
-                | head -1 | xargs -I {} curl -s "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonEKS/current/index.json" \\
-                | jq -r '.terms.OnDemand | to_entries[0].value.priceDimensions | to_entries[0].value.pricePerUnit.USD // "0.10"'
-            """,
-            returnStdout: true
-        ).trim()
-        
-        if (result && result != "null" && result != "") {
-            def price = result as Double
-            echo "✅ AWS EKS Control Plane (API): \$${String.format('%.4f', price)}/hour"
-            return price
-        }
-        
-        // Fallback to direct JSON parsing approach
-        def eksPrice = sh(
-            script: """
-            curl -s "https://b0.p.awsstatic.com/pricing/2.0/meteredUnitMaps/eks/USD/current/eks.json" \\
-                | jq -r '.regions."${region}".price // 0.10'
-            """,
-            returnStdout: true
-        ).trim()
-        
-        def price = eksPrice as Double
-        echo "✅ AWS EKS Control Plane (Direct API): \$${String.format('%.4f', price)}/hour"
-        return price
-        
-    } catch (Exception e) {
-        echo "❌ AWS EKS API failed: ${e.message}"
-        throw new Exception("API-only mode: Cannot fetch EKS pricing")
-    }
-}
-
-def getAWSEC2Pricing(String instanceType, String region) {
-    try {
-        // Use AWS EC2 pricing API directly
-        def result = sh(
-            script: """
-            curl -s "https://b0.p.awsstatic.com/pricing/2.0/meteredUnitMaps/ec2/USD/current/ec2-on-demand-without-reserved-instances.json" \\
-                | jq -r '.regions."${region}"."${instanceType}".price // empty'
-            """,
-            returnStdout: true
-        ).trim()
-        
-        if (result && result != "null" && result != "empty" && result != "") {
-            def price = result as Double
-            echo "✅ AWS EC2 ${instanceType} (Direct API): \$${String.format('%.4f', price)}/hour"
-            return price
-        }
-        
-        // Alternative: Use AWS Pricing Calculator API
-        def calcResult = sh(
-            script: """
-            curl -s -X POST "https://calculator.aws/calculator/api/estimate" \\
-                -H "Content-Type: application/json" \\
-                -d '{
-                    "region": "${region}",
-                    "services": [{
-                        "service": "EC2",
-                        "instanceType": "${instanceType}",
-                        "operatingSystem": "Linux"
-                    }]
-                }' | jq -r '.estimate.monthly.total // empty' | awk '{print \$1/730}'
-            """,
-            returnStdout: true
-        ).trim()
-        
-        if (calcResult && calcResult != "empty") {
-            def price = calcResult as Double
-            echo "✅ AWS EC2 ${instanceType} (Calculator API): \$${String.format('%.4f', price)}/hour"
-            return price
-        }
-        
-        throw new Exception("No pricing data available from APIs")
-        
-    } catch (Exception e) {
-        echo "❌ AWS EC2 API failed: ${e.message}"
-        throw new Exception("API-only mode: Cannot fetch EC2 pricing")
-    }
-}
-
-def getAWSLoadBalancerPricing(String region) {
-    try {
-        def locationMapping = [
-            'us-east-1': 'US East (N. Virginia)',
-            'us-west-2': 'US West (Oregon)', 
-            'eu-west-1': 'Europe (Ireland)',
-            'ap-southeast-1': 'Asia Pacific (Singapore)',
-            'ap-northeast-1': 'Asia Pacific (Tokyo)'
-        ]
-        
-        def location = locationMapping[region] ?: 'Asia Pacific (Singapore)'
-        
-        def result = sh(
-            script: """
-            aws pricing get-products \\
-                --service-code AWSELB \\
-                --filters 'Type=TERM_MATCH,Field=location,Value=${location}' \\
-                         'Type=TERM_MATCH,Field=usagetype,Value=${region.toUpperCase()}-LoadBalancerUsage' \\
-                --region us-east-1 \\
-                --format-version aws_v1 \\
-                --max-results 1 | jq -r '.PriceList[0]' | jq -r '.terms.OnDemand | to_entries[0].value.priceDimensions | to_entries[0].value.pricePerUnit.USD'
-            """,
-            returnStdout: true
-        ).trim()
-        
-        def price = result as Double
-        echo "✅ AWS Load Balancer: \$${String.format('%.4f', price)}/hour"
-        return price
-    } catch (Exception e) {
-        echo "⚠️ Could not fetch Load Balancer pricing, using fallback: ${e.message}"
-        return 0.0225
-    }
-}
-
-def getAWSEBSPricing(String region) {
-    try {
-        def locationMapping = [
-            'us-east-1': 'US East (N. Virginia)',
-            'us-west-2': 'US West (Oregon)', 
-            'eu-west-1': 'Europe (Ireland)',
-            'ap-southeast-1': 'Asia Pacific (Singapore)',
-            'ap-northeast-1': 'Asia Pacific (Tokyo)'
-        ]
-        
-        def location = locationMapping[region] ?: 'Asia Pacific (Singapore)'
-        
-        def result = sh(
-            script: """
-            aws pricing get-products \\
-                --service-code AmazonEC2 \\
-                --filters 'Type=TERM_MATCH,Field=location,Value=${location}' \\
-                         'Type=TERM_MATCH,Field=productFamily,Value=Storage' \\
-                         'Type=TERM_MATCH,Field=volumeType,Value=General Purpose' \\
-                --region us-east-1 \\
-                --format-version aws_v1 \\
-                --max-results 1 | jq -r '.PriceList[0]' | jq -r '.terms.OnDemand | to_entries[0].value.priceDimensions | to_entries[0].value.pricePerUnit.USD'
-            """,
-            returnStdout: true
-        ).trim()
-        
-        def price = result as Double
-        echo "✅ AWS EBS Storage: \$${String.format('%.4f', price)}/GB/month"
-        return price
-    } catch (Exception e) {
-        echo "⚠️ Could not fetch EBS pricing, using fallback: ${e.message}"
-        return 0.10
-    }
-}
-
-// ========================================
-// GCP PRICING API FUNCTIONS  
-// ========================================
-
-def getGCPGKEPricing(String region) {
-    try {
-        // First, ensure we have proper GCP authentication (without exposing token)
-        def authTest = sh(
-            script: "gcloud auth print-access-token > /dev/null 2>&1 && echo 'SUCCESS' || echo 'ERROR'",
-            returnStdout: true
-        ).trim()
-        
-        if (authTest != "SUCCESS") {
-            throw new Exception("GCP authentication not available - please run 'gcloud auth login'")
-        }
-        
-        echo "✅ GCP authentication validated (token not exposed)"
-        
-        // Get GKE pricing using Cloud Billing API (secure method)
-        def result = sh(
-            script: """
-            # Securely get access token without exposing in logs
-            ACCESS_TOKEN=\$(gcloud auth print-access-token 2>/dev/null)
-            
-            if [ -z "\$ACCESS_TOKEN" ]; then
-                echo "ERROR: Cannot obtain access token"
-                exit 1
-            fi
-            
-            # Get Kubernetes Engine service SKUs (token not logged)
-            curl -s -H "Authorization: Bearer \${ACCESS_TOKEN}" \\
-                "https://cloudbilling.googleapis.com/v1/services/6F81-5844-456A/skus?pageSize=1000" \\
-                2>/dev/null \\
-                | jq -r '.skus[] | select(.description | test("Cluster management fee"; "i")) | select(.serviceRegions[] | contains("${region}") or contains("global")) | .pricingInfo[0].pricingExpression.tieredRates[0].unitPrice' \\
-                | jq -r 'if .units then (.units | tonumber) + ((.nanos // 0 | tonumber) / 1000000000) else empty end' \\
-                | head -1
-            """,
-            returnStdout: true
-        ).trim()
-        
-        if (result && result != "null" && result != "" && result != "0") {
-            def price = result as Double
-            echo "✅ GCP GKE Control Plane (API): \$${String.format('%.4f', price)}/hour"
-            return price
-        }
-        
-        // Alternative: Get from public GCP pricing
-        def publicResult = sh(
-            script: """
-            curl -s "https://cloudpricingcalculator.appspot.com/static/data/pricelist.json" \\
-                | jq -r '.gcp_price_list[] | select(.product_family == "Compute") | select(.description | contains("Kubernetes")) | .price_usd // 0.10'
-            """,
-            returnStdout: true
-        ).trim()
-        
-        if (publicResult && publicResult != "null" && publicResult != "") {
-            def price = publicResult as Double
-            echo "✅ GCP GKE Control Plane (Public API): \$${String.format('%.4f', price)}/hour"
-            return price
-        }
-        
-        throw new Exception("No pricing data available from APIs")
-        
-    } catch (Exception e) {
-        echo "❌ GCP GKE API failed: ${e.message}"
-        throw new Exception("API-only mode: Cannot fetch GKE pricing")
-    }
-}
-
-def getGCPComputePricing(String machineType, String region) {
-    try {
-        // Get Compute Engine pricing using authenticated API (secure method)
-        def result = sh(
-            script: """
-            # Securely get access token without exposing in logs
-            ACCESS_TOKEN=\$(gcloud auth print-access-token 2>/dev/null)
-            
-            if [ -z "\$ACCESS_TOKEN" ]; then
-                echo "ERROR: Cannot obtain access token"
-                exit 1
-            fi
-            
-            # Get Compute Engine service ID (token not logged)
-            COMPUTE_SERVICE_ID=\$(curl -s -H "Authorization: Bearer \${ACCESS_TOKEN}" \\
-                "https://cloudbilling.googleapis.com/v1/services" \\
-                2>/dev/null \\
-                | jq -r '.services[] | select(.displayName == "Compute Engine") | .name | split("/")[1]' 2>/dev/null)
-            
-            if [ -z "\$COMPUTE_SERVICE_ID" ]; then
-                echo "ERROR: Cannot get Compute Engine service ID"
-                exit 1
-            fi
-            
-            # Get machine type pricing (token not logged)
-            curl -s -H "Authorization: Bearer \${ACCESS_TOKEN}" \\
-                "https://cloudbilling.googleapis.com/v1/services/\${COMPUTE_SERVICE_ID}/skus?pageSize=1000" \\
-                2>/dev/null \\
-                | jq -r '.skus[] | select(.description | test("${machineType}.*running"; "i")) | select(.serviceRegions[] | contains("${region}") or . == "global") | .pricingInfo[0].pricingExpression.tieredRates[0].unitPrice' \\
-                | jq -r 'if .units then (.units | tonumber) + ((.nanos // 0 | tonumber) / 1000000000) else empty end' \\
-                | head -1
-            """,
-            returnStdout: true
-        ).trim()
-        
-        if (result && result != "null" && result != "" && result != "empty") {
-            def price = result as Double  
-            echo "✅ GCP Compute ${machineType} (API): \$${String.format('%.4f', price)}/hour"
-            return price
-        }
-        
-        // Alternative: Use public GCP pricing calculator
-        def publicResult = sh(
-            script: """
-            curl -s "https://cloudpricingcalculator.appspot.com/static/data/pricelist.json" \\
-                | jq -r '.gcp_price_list[] | select(.product_family == "Compute") | select(.description | contains("${machineType}")) | .price_usd' \\
-                | head -1
-            """,
-            returnStdout: true
-        ).trim()
-        
-        if (publicResult && publicResult != "null" && publicResult != "") {
-            def price = publicResult as Double
-            echo "✅ GCP Compute ${machineType} (Public Calculator): \$${String.format('%.4f', price)}/hour"
-            return price
-        }
-        
-        throw new Exception("No pricing data available from APIs")
-        
-    } catch (Exception e) {
-        echo "❌ GCP Compute API failed: ${e.message}"
-        throw new Exception("API-only mode: Cannot fetch Compute Engine pricing")
-    }
-}
-
-def getGCPLoadBalancerPricing(String region) {
-    try {
-        // Load Balancer pricing is typically standard across regions
-        echo "✅ GCP Load Balancer: \$0.0250/hour (standard rate)"
-        return 0.025
-    } catch (Exception e) {
-        echo "⚠️ Could not fetch Load Balancer pricing, using fallback: ${e.message}"
-        return 0.025
-    }
-}
-
-def getGCPDiskPricing(String region) {
-    try {
-        // Persistent Disk Standard pricing varies by region
-        def regionPricing = [
-            'asia-southeast1': 0.04,
-            'us-central1': 0.04,
-            'us-east1': 0.04,
-            'europe-west1': 0.044
-        ]
-        def price = regionPricing[region] ?: 0.04
-        echo "✅ GCP Persistent Disk: \$${String.format('%.4f', price)}/GB/month"
-        return price
-    } catch (Exception e) {
-        echo "⚠️ Could not fetch Persistent Disk pricing, using fallback: ${e.message}"
-        return 0.04
-    }
-}
-
 return this
+

@@ -69,32 +69,7 @@ node(POD_LABEL) {
                     echo 'Skipping cost comparison (SHOW_COST_COMPARISON is false)'
                 } else {
                     try {
-                        echo '🔍 Analyzing deployment costs using PURE API-ONLY mode...'
-                        echo '⚠️  This will fail unless proper API credentials are configured!'
-                        
-                        // Install required tools for API calls
-                        sh '''
-                        echo "🛠️ Installing tools for API-only pricing..."
-                        apt-get update -qq
-                        apt-get install -y -qq jq curl unzip
-                        
-                        # Install AWS CLI
-                        if ! command -v aws &> /dev/null; then
-                            curl -s "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o awscliv2.zip
-                            unzip -q awscliv2.zip
-                            ./aws/install
-                        fi
-                        
-                        echo "🔧 Tool versions for API calls:"
-                        aws --version
-                        jq --version
-                        gcloud version
-                        
-                        echo "🔑 Checking API access (securely)..."
-                        echo "GCP Auth Status: $(gcloud auth list --format='value(account)' | head -1 | sed 's/.*/[ACCOUNT_HIDDEN]/' || echo 'Not authenticated')"
-                        echo "AWS Config: Using public pricing endpoints (no credentials needed for pricing API)"
-                        echo "🔒 Security: All access tokens and credentials are kept secure and not logged"
-                        '''
+                        echo '🔍 Analyzing deployment costs for AWS vs GCP...'
                         
                         def costConfig = [
                             awsRegion: 'ap-southeast-1',
