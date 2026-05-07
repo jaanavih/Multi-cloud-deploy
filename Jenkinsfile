@@ -69,11 +69,12 @@ node(POD_LABEL) {
                     echo 'Skipping cost comparison (SHOW_COST_COMPARISON is false)'
                 } else {
                     try {
-                        echo '🔍 Analyzing deployment costs using real-time AWS & GCP APIs...'
+                        echo '🔍 Analyzing deployment costs using PURE API-ONLY mode...'
+                        echo '⚠️  This will fail unless proper API credentials are configured!'
                         
                         // Install required tools for API calls
                         sh '''
-                        echo "🛠️ Installing tools for pricing APIs..."
+                        echo "🛠️ Installing tools for API-only pricing..."
                         apt-get update -qq
                         apt-get install -y -qq jq curl unzip
                         
@@ -84,9 +85,14 @@ node(POD_LABEL) {
                             ./aws/install
                         fi
                         
+                        echo "🔧 Tool versions for API calls:"
                         aws --version
                         jq --version
                         gcloud version
+                        
+                        echo "🔑 Checking API access..."
+                        echo "GCP Auth Status: $(gcloud auth list --format='value(account)' | head -1 || echo 'Not authenticated')"
+                        echo "AWS Config: Using public pricing endpoints (no credentials needed for pricing API)"
                         '''
                         
                         def costConfig = [
