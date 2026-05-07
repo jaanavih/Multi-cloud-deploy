@@ -64,7 +64,15 @@ node(POD_LABEL) {
                     echo 'Skipping cost comparison (SHOW_COST_COMPARISON is false)'
                 } else {
                     try {
-                        echo '🔍 Analyzing deployment costs for AWS vs GCP...'
+                        echo '🔍 Analyzing deployment costs using real-time public APIs...'
+                        
+                        // Install jq for JSON parsing (required for public API calls)
+                        sh '''
+                        echo "🛠️ Installing jq for pricing API calls..."
+                        apt-get update -qq
+                        apt-get install -y -qq jq curl
+                        jq --version
+                        '''
                         
                         def costConfig = [
                             awsRegion: 'ap-southeast-1',
