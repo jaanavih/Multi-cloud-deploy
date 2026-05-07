@@ -70,69 +70,102 @@ def extractServiceType(String content) {
 
 def calculateAWSCosts(Map specs, Map config) {
     def costs = [:]
-    costs.clusterManagement = 0.10 * specs.hoursPerMonth
-
+    def region = config.awsRegion ?: 'ap-southeast-1'
     def instanceType = 't3.medium'
     def instancesNeeded = Math.ceil((double)(specs.replicas / 4))
-
-    def instanceCosts = [
-        't3.micro'  : 0.0104,
-        't3.small'  : 0.0208,
-        't3.medium' : 0.0416,
-        't3.large'  : 0.0832
-    ]
-
-    costs.compute = instanceCosts[instanceType] * instancesNeeded * specs.hoursPerMonth
-
-    if (specs.serviceType == 'LoadBalancer') {
-        costs.loadBalancer = 0.0225 * specs.hoursPerMonth
-        costs.dataTransfer = 5.0
-    } else {
-        costs.loadBalancer = 0
-        costs.dataTransfer = 0
+    
+    echo "🔍 Fetching real-time AWS pricing for region: ${region}"
+    
+    try {
+        // Get EKS Control Plane pricing
+        costs.clusterManagement = getAWSEKSPricing(region) * specs.hoursPerMonth
+        
+        // Get EC2 instance pricing
+        def instancePricePerHour = getAWSEC2Pricing(instanceType, region)
+        costs.compute = instancePricePerHour * instancesNeeded * specs.hoursPerMonth
+        
+        // Get Load Balancer pricing
+        if (specs.serviceType == 'LoadBalancer') {
+            costs.loadBalancer = getAWSLoadBalancerPricing(region) * specs.hoursPerMonth
+            costs.dataTransfer = 5.0 // Data transfer estimate
+        } else {
+            costs.loadBalancer = 0
+            costs.dataTransfer = 0
+        }
+        
+        // Get EBS Storage pricing
+        def ebsPricePerGB = getAWSEBSPricing(region)
+        costs.storage = ebsPricePerGB * 20 * instancesNeeded
+        costs.networking = 2.0 // Networking estimate
+        
+    } catch (Exception e) {
+        echo "⚠️ AWS API pricing failed, falling back to static prices: ${e.message}"
+        // Fallback to static pricing
+        costs.clusterManagement = 0.10 * specs.hoursPerMonth
+        costs.compute = 0.0416 * instancesNeeded * specs.hoursPerMonth
+        costs.loadBalancer = specs.serviceType == 'LoadBalancer' ? 0.0225 * specs.hoursPerMonth : 0
+        costs.dataTransfer = specs.serviceType == 'LoadBalancer' ? 5.0 : 0
+        costs.storage = 0.10 * 20 * instancesNeeded
+        costs.networking = 2.0
     }
-
-    costs.storage = 0.10 * 20 * instancesNeeded
-    costs.networking = 2.0
+    
     costs.total = costs.clusterManagement + costs.compute + costs.loadBalancer +
         costs.dataTransfer + costs.storage + costs.networking
     costs.currency = 'USD'
-    costs.region = config.awsRegion ?: 'ap-southeast-1'
+    costs.region = region
+    costs.instanceType = instanceType
+    costs.instancesNeeded = instancesNeeded
 
     return costs
 }
 
 def calculateGCPCosts(Map specs, Map config) {
     def costs = [:]
-    costs.clusterManagement = 0.10 * specs.hoursPerMonth
-
+    def region = config.gcpRegion ?: 'asia-southeast1'
     def machineType = 'e2-standard-2'
     def instancesNeeded = Math.ceil((double)(specs.replicas / 4))
-
-    def machineCosts = [
-        'e2-micro'        : 0.006,
-        'e2-small'        : 0.020,
-        'e2-medium'       : 0.040,
-        'e2-standard-2'   : 0.080,
-        'e2-standard-4'   : 0.160
-    ]
-
-    costs.compute = machineCosts[machineType] * instancesNeeded * specs.hoursPerMonth
-
-    if (specs.serviceType == 'LoadBalancer') {
-        costs.loadBalancer = 0.025 * specs.hoursPerMonth
-        costs.dataTransfer = 4.0
-    } else {
-        costs.loadBalancer = 0
-        costs.dataTransfer = 0
+    
+    echo "🔍 Fetching real-time GCP pricing for region: ${region}"
+    
+    try {
+        // Get GKE Control Plane pricing
+        costs.clusterManagement = getGCPGKEPricing(region) * specs.hoursPerMonth
+        
+        // Get Compute Engine pricing
+        def machinePricePerHour = getGCPComputePricing(machineType, region)
+        costs.compute = machinePricePerHour * instancesNeeded * specs.hoursPerMonth
+        
+        // Get Load Balancer pricing
+        if (specs.serviceType == 'LoadBalancer') {
+            costs.loadBalancer = getGCPLoadBalancerPricing(region) * specs.hoursPerMonth
+            costs.dataTransfer = 4.0 // Data transfer estimate
+        } else {
+            costs.loadBalancer = 0
+            costs.dataTransfer = 0
+        }
+        
+        // Get Persistent Disk pricing
+        def diskPricePerGB = getGCPDiskPricing(region)
+        costs.storage = diskPricePerGB * 20 * instancesNeeded
+        costs.networking = 1.5 // Networking estimate
+        
+    } catch (Exception e) {
+        echo "⚠️ GCP API pricing failed, falling back to static prices: ${e.message}"
+        // Fallback to static pricing
+        costs.clusterManagement = 0.10 * specs.hoursPerMonth
+        costs.compute = 0.080 * instancesNeeded * specs.hoursPerMonth
+        costs.loadBalancer = specs.serviceType == 'LoadBalancer' ? 0.025 * specs.hoursPerMonth : 0
+        costs.dataTransfer = specs.serviceType == 'LoadBalancer' ? 4.0 : 0
+        costs.storage = 0.04 * 20 * instancesNeeded
+        costs.networking = 1.5
     }
-
-    costs.storage = 0.04 * 20 * instancesNeeded
-    costs.networking = 1.5
+    
     costs.total = costs.clusterManagement + costs.compute + costs.loadBalancer +
         costs.dataTransfer + costs.storage + costs.networking
     costs.currency = 'USD'
-    costs.region = config.gcpRegion ?: 'asia-southeast1'
+    costs.region = region
+    costs.machineType = machineType
+    costs.instancesNeeded = instancesNeeded
 
     return costs
 }
@@ -748,6 +781,272 @@ def generateCostReport(Map results) {
 </html>
 """
     return html
+}
+
+// ========================================
+// AWS PRICING API FUNCTIONS
+// ========================================
+
+def getAWSEKSPricing(String region) {
+    try {
+        def locationMapping = [
+            'us-east-1': 'US East (N. Virginia)',
+            'us-west-2': 'US West (Oregon)', 
+            'eu-west-1': 'Europe (Ireland)',
+            'ap-southeast-1': 'Asia Pacific (Singapore)',
+            'ap-northeast-1': 'Asia Pacific (Tokyo)'
+        ]
+        
+        def location = locationMapping[region] ?: 'Asia Pacific (Singapore)'
+        
+        def result = sh(
+            script: """
+            aws pricing get-products \\
+                --service-code AmazonEKS \\
+                --filters 'Type=TERM_MATCH,Field=location,Value=${location}' \\
+                --region us-east-1 \\
+                --format-version aws_v1 \\
+                --max-results 1 | jq -r '.PriceList[0]' | jq -r '.terms.OnDemand | to_entries[0].value.priceDimensions | to_entries[0].value.pricePerUnit.USD'
+            """,
+            returnStdout: true
+        ).trim()
+        
+        def price = result as Double
+        echo "✅ AWS EKS Control Plane: \$${String.format('%.4f', price)}/hour"
+        return price
+    } catch (Exception e) {
+        echo "⚠️ Could not fetch EKS pricing, using fallback: ${e.message}"
+        return 0.10
+    }
+}
+
+def getAWSEC2Pricing(String instanceType, String region) {
+    try {
+        def locationMapping = [
+            'us-east-1': 'US East (N. Virginia)',
+            'us-west-2': 'US West (Oregon)', 
+            'eu-west-1': 'Europe (Ireland)',
+            'ap-southeast-1': 'Asia Pacific (Singapore)',
+            'ap-northeast-1': 'Asia Pacific (Tokyo)'
+        ]
+        
+        def location = locationMapping[region] ?: 'Asia Pacific (Singapore)'
+        
+        def result = sh(
+            script: """
+            aws pricing get-products \\
+                --service-code AmazonEC2 \\
+                --filters 'Type=TERM_MATCH,Field=instanceType,Value=${instanceType}' \\
+                         'Type=TERM_MATCH,Field=location,Value=${location}' \\
+                         'Type=TERM_MATCH,Field=tenancy,Value=Shared' \\
+                         'Type=TERM_MATCH,Field=operatingSystem,Value=Linux' \\
+                --region us-east-1 \\
+                --format-version aws_v1 \\
+                --max-results 1 | jq -r '.PriceList[0]' | jq -r '.terms.OnDemand | to_entries[0].value.priceDimensions | to_entries[0].value.pricePerUnit.USD'
+            """,
+            returnStdout: true
+        ).trim()
+        
+        def price = result as Double
+        echo "✅ AWS EC2 ${instanceType}: \$${String.format('%.4f', price)}/hour"
+        return price
+    } catch (Exception e) {
+        echo "⚠️ Could not fetch EC2 pricing, using fallback: ${e.message}"
+        return 0.0416 // t3.medium fallback
+    }
+}
+
+def getAWSLoadBalancerPricing(String region) {
+    try {
+        def locationMapping = [
+            'us-east-1': 'US East (N. Virginia)',
+            'us-west-2': 'US West (Oregon)', 
+            'eu-west-1': 'Europe (Ireland)',
+            'ap-southeast-1': 'Asia Pacific (Singapore)',
+            'ap-northeast-1': 'Asia Pacific (Tokyo)'
+        ]
+        
+        def location = locationMapping[region] ?: 'Asia Pacific (Singapore)'
+        
+        def result = sh(
+            script: """
+            aws pricing get-products \\
+                --service-code AWSELB \\
+                --filters 'Type=TERM_MATCH,Field=location,Value=${location}' \\
+                         'Type=TERM_MATCH,Field=usagetype,Value=${region.toUpperCase()}-LoadBalancerUsage' \\
+                --region us-east-1 \\
+                --format-version aws_v1 \\
+                --max-results 1 | jq -r '.PriceList[0]' | jq -r '.terms.OnDemand | to_entries[0].value.priceDimensions | to_entries[0].value.pricePerUnit.USD'
+            """,
+            returnStdout: true
+        ).trim()
+        
+        def price = result as Double
+        echo "✅ AWS Load Balancer: \$${String.format('%.4f', price)}/hour"
+        return price
+    } catch (Exception e) {
+        echo "⚠️ Could not fetch Load Balancer pricing, using fallback: ${e.message}"
+        return 0.0225
+    }
+}
+
+def getAWSEBSPricing(String region) {
+    try {
+        def locationMapping = [
+            'us-east-1': 'US East (N. Virginia)',
+            'us-west-2': 'US West (Oregon)', 
+            'eu-west-1': 'Europe (Ireland)',
+            'ap-southeast-1': 'Asia Pacific (Singapore)',
+            'ap-northeast-1': 'Asia Pacific (Tokyo)'
+        ]
+        
+        def location = locationMapping[region] ?: 'Asia Pacific (Singapore)'
+        
+        def result = sh(
+            script: """
+            aws pricing get-products \\
+                --service-code AmazonEC2 \\
+                --filters 'Type=TERM_MATCH,Field=location,Value=${location}' \\
+                         'Type=TERM_MATCH,Field=productFamily,Value=Storage' \\
+                         'Type=TERM_MATCH,Field=volumeType,Value=General Purpose' \\
+                --region us-east-1 \\
+                --format-version aws_v1 \\
+                --max-results 1 | jq -r '.PriceList[0]' | jq -r '.terms.OnDemand | to_entries[0].value.priceDimensions | to_entries[0].value.pricePerUnit.USD'
+            """,
+            returnStdout: true
+        ).trim()
+        
+        def price = result as Double
+        echo "✅ AWS EBS Storage: \$${String.format('%.4f', price)}/GB/month"
+        return price
+    } catch (Exception e) {
+        echo "⚠️ Could not fetch EBS pricing, using fallback: ${e.message}"
+        return 0.10
+    }
+}
+
+// ========================================
+// GCP PRICING API FUNCTIONS  
+// ========================================
+
+def getGCPGKEPricing(String region) {
+    try {
+        def result = sh(
+            script: """
+            gcloud billing skus list \\
+                --billing-account=\$(gcloud billing accounts list --format='value(name)' --limit=1) \\
+                --filter="service.name:'Kubernetes Engine' AND description~'Cluster management fee'" \\
+                --format="value(pricingInfo[0].pricingExpression.tieredRates[0].unitPrice.units,pricingInfo[0].pricingExpression.tieredRates[0].unitPrice.nanos)" \\
+                --limit=1 | head -1
+            """,
+            returnStdout: true
+        ).trim()
+        
+        if (result) {
+            def parts = result.split(' ')
+            if (parts.size() >= 2) {
+                def units = parts[0] as Double
+                def nanos = parts[1] as Double
+                def price = units + (nanos / 1000000000)
+                echo "✅ GCP GKE Control Plane: \$${String.format('%.4f', price)}/hour"
+                return price
+            }
+        }
+        throw new Exception("No pricing data found")
+    } catch (Exception e) {
+        echo "⚠️ Could not fetch GKE pricing, using fallback: ${e.message}"
+        return 0.10
+    }
+}
+
+def getGCPComputePricing(String machineType, String region) {
+    try {
+        def result = sh(
+            script: """
+            gcloud billing skus list \\
+                --billing-account=\$(gcloud billing accounts list --format='value(name)' --limit=1) \\
+                --filter="service.name:'Compute Engine' AND description~'${machineType}' AND description~'running'" \\
+                --format="value(pricingInfo[0].pricingExpression.tieredRates[0].unitPrice.units,pricingInfo[0].pricingExpression.tieredRates[0].unitPrice.nanos)" \\
+                --limit=1 | head -1
+            """,
+            returnStdout: true
+        ).trim()
+        
+        if (result) {
+            def parts = result.split(' ')
+            if (parts.size() >= 2) {
+                def units = parts[0] as Double
+                def nanos = parts[1] as Double  
+                def price = units + (nanos / 1000000000)
+                echo "✅ GCP Compute ${machineType}: \$${String.format('%.4f', price)}/hour"
+                return price
+            }
+        }
+        throw new Exception("No pricing data found")
+    } catch (Exception e) {
+        echo "⚠️ Could not fetch Compute Engine pricing, using fallback: ${e.message}"
+        return 0.080 // e2-standard-2 fallback
+    }
+}
+
+def getGCPLoadBalancerPricing(String region) {
+    try {
+        def result = sh(
+            script: """
+            gcloud billing skus list \\
+                --billing-account=\$(gcloud billing accounts list --format='value(name)' --limit=1) \\
+                --filter="service.name:'Compute Engine' AND description~'Network Load Balancing'" \\
+                --format="value(pricingInfo[0].pricingExpression.tieredRates[0].unitPrice.units,pricingInfo[0].pricingExpression.tieredRates[0].unitPrice.nanos)" \\
+                --limit=1 | head -1
+            """,
+            returnStdout: true
+        ).trim()
+        
+        if (result) {
+            def parts = result.split(' ')
+            if (parts.size() >= 2) {
+                def units = parts[0] as Double
+                def nanos = parts[1] as Double
+                def price = units + (nanos / 1000000000)
+                echo "✅ GCP Load Balancer: \$${String.format('%.4f', price)}/hour"
+                return price
+            }
+        }
+        throw new Exception("No pricing data found")
+    } catch (Exception e) {
+        echo "⚠️ Could not fetch Load Balancer pricing, using fallback: ${e.message}"
+        return 0.025
+    }
+}
+
+def getGCPDiskPricing(String region) {
+    try {
+        def result = sh(
+            script: """
+            gcloud billing skus list \\
+                --billing-account=\$(gcloud billing accounts list --format='value(name)' --limit=1) \\
+                --filter="service.name:'Compute Engine' AND description~'Storage PD Standard'" \\
+                --format="value(pricingInfo[0].pricingExpression.tieredRates[0].unitPrice.units,pricingInfo[0].pricingExpression.tieredRates[0].unitPrice.nanos)" \\
+                --limit=1 | head -1
+            """,
+            returnStdout: true
+        ).trim()
+        
+        if (result) {
+            def parts = result.split(' ')
+            if (parts.size() >= 2) {
+                def units = parts[0] as Double
+                def nanos = parts[1] as Double
+                def price = units + (nanos / 1000000000)
+                echo "✅ GCP Persistent Disk: \$${String.format('%.4f', price)}/GB/month"
+                return price
+            }
+        }
+        throw new Exception("No pricing data found")
+    } catch (Exception e) {
+        echo "⚠️ Could not fetch Persistent Disk pricing, using fallback: ${e.message}"
+        return 0.04
+    }
 }
 
 return this

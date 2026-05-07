@@ -69,7 +69,7 @@ node(POD_LABEL) {
                     echo 'Skipping cost comparison (SHOW_COST_COMPARISON is false)'
                 } else {
                     try {
-                        echo '🔍 Analyzing deployment costs for AWS vs GCP...'
+                        echo '🔍 Analyzing deployment costs using real-time AWS & GCP APIs...'
                         def costConfig = [
                             awsRegion: 'ap-southeast-1',
                             gcpRegion: 'asia-southeast1',
