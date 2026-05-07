@@ -96,7 +96,7 @@ node(POD_LABEL) {
                             reportName: '💰 Cost Comparison Report',
                             reportTitles: 'Multi-Cloud Cost Analysis'
                         ])
-                        env.COST_RESULTS = writeJSON returnText: true, json: costResults
+                        // Store cost results in build description instead of env var (writeJSON not available)
                         def cheaperProvider = costResults.aws.total > costResults.gcp.total ? 'GCP' : 'AWS'
                         def savings = Math.abs(costResults.aws.total - costResults.gcp.total)
                         currentBuild.description = "💰 ${cheaperProvider} cheaper by \$${String.format("%.2f", savings)}/month (pick cloud next)"
