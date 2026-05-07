@@ -6,9 +6,8 @@
  * - Interactive cost comparison reports
  * - Smart deployment recommendations
  * - Cost-aware deployment decisions
+ * (loads lib/costComparison.groovy after checkout — no Global Pipeline Library)
  */
-
-@Library('cost-comparison-library') _
 
 properties([
     parameters([
@@ -107,7 +106,8 @@ node(POD_LABEL) {
                     ]
                     
                     // Run cost comparison
-                    costResults = costComparison(costConfig)
+                    def costLib = load 'lib/costComparison.groovy'
+                    costResults = costLib.runCostComparison(costConfig)
                     
                     // Auto-select cheapest provider if requested
                     if (params.CLOUD_PROVIDER == 'auto-select') {

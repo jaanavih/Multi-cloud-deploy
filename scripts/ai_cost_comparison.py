@@ -3,7 +3,7 @@
 AI-assisted cost comparison for AWS EKS vs GCP GKE.
 
 Baseline USD estimates are computed deterministically from k8s manifests
-(the same model as vars/costComparison.groovy). The LLM only produces
+(the same model as lib/costComparison.groovy). The LLM only produces
 narrative, caveats, and recommendations — final numeric totals always come
 from the baseline to avoid hallucinated prices.
 """

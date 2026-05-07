@@ -97,20 +97,25 @@ Choose your workload size for accurate estimates:
 
 ## 🔧 Setup Instructions
 
-### 1. Configure Jenkins Shared Library
+### 1. Global Pipeline Library (optional)
+
+The default **`Jenkinsfile`** does **not** require a Global Pipeline Library. Cost logic lives in **`lib/costComparison.groovy`** and is loaded with **`load`** after **`checkout scm`**.
+
+You only need **Global Pipeline Libraries → `cost-comparison-library`** if you use a custom pipeline that still calls `@Library('cost-comparison-library')`.
+
 ```bash
-# Run the setup script for guidance
+# Optional: run the setup script for other hints
 ./setup-jenkins-library.sh
 ```
 
-### 2. Jenkins Configuration
-1. Go to **Manage Jenkins** → **Configure System**
-2. Add **Global Pipeline Libraries**:
-   - Name: `cost-comparison-library`
-   - Default version: `main`
-   - Source: Your repository URL
+### 2. Jenkins configuration (minimal)
 
-### 3. Required Plugins
+1. Pipeline job: **Pipeline script from SCM** → your Git repo and branch.
+2. **Script Path:** `Jenkinsfile` (or `Jenkinsfile.parameters-first` / `Jenkinsfile.cost-only` as needed).
+3. **No** shared library entry required for the default `Jenkinsfile`.
+
+### 3. Required plugins
+
 Install these Jenkins plugins:
 - Pipeline: Groovy
 - HTML Publisher
@@ -125,13 +130,19 @@ Install these Jenkins plugins:
 ## 📁 File Structure
 
 ```
-├── vars/
-│   └── costComparison.groovy          # Shared library function
-├── Jenkinsfile                         # Original pipeline (updated)
-├── Jenkinsfile-enhanced                # Enhanced pipeline with smart features
-├── cost-comparison-pipeline.jenkinsfile # Standalone cost analysis
-├── setup-jenkins-library.sh           # Setup helper script
-└── COST_COMPARISON_README.md          # This documentation
+├── lib/
+│   └── costComparison.groovy          # Loaded via load() after checkout (no global library)
+├── scripts/
+│   ├── ai_cost_comparison.py
+│   └── requirements.txt
+├── Jenkinsfile                         # Default: Option A (cost → input → deploy)
+├── Jenkinsfile.cost-gate               # Symlink → Jenkinsfile
+├── Jenkinsfile.parameters-first        # Legacy: CLOUD_PROVIDER on first screen
+├── Jenkinsfile.cost-only               # Cost-only job
+├── Jenkinsfile-enhanced                # Enhanced experiment (optional)
+├── cost-comparison-pipeline.jenkinsfile
+├── setup-jenkins-library.sh
+└── COST_COMPARISON_README.md
 ```
 
 ## 🎨 HTML Report Features
@@ -147,7 +158,7 @@ The generated HTML reports include:
 ## ⚙️ Customization
 
 ### Update Pricing
-Modify `vars/costComparison.groovy` to update:
+Modify `lib/costComparison.groovy` to update:
 - Instance pricing (check cloud provider websites)
 - Regional pricing differences  
 - New instance types
@@ -235,7 +246,7 @@ Infra savings tip: bake **`google/cloud-sdk` + Python deps** into a **custom age
 
 The repo includes `scripts/ai_cost_comparison.py`, which:
 
-- Computes **deterministic** monthly USD estimates from `k8s/` (aligned with `vars/costComparison.groovy`).
+- Computes **deterministic** monthly USD estimates from `k8s/` (aligned with `lib/costComparison.groovy`).
 - Sends that baseline JSON to an LLM for **narrative only** (drivers, exclusions, optimization ideas). Final totals in HTML always come from the baseline so prices are not hallucinated.
 
 **Jenkins**
@@ -260,13 +271,17 @@ python3 scripts/ai_cost_comparison.py --out-dir ./out
 
 ### Common Issues
 
+**Could not find any definition of libraries [cost-comparison-library]**
+- Update the repo to the latest `main`: pipelines now use `load 'lib/costComparison.groovy'` and **do not** use `@Library('cost-comparison-library')` on the default `Jenkinsfile`.
+- If you still see this error, your Jenkins job may be pinned to an old branch/commit, or a forked Jenkinsfile still has `@Library`.
+
 **Cost Comparison Fails**
 - Check Jenkins shared library configuration
 - Verify repository access and credentials
 - Ensure required plugins are installed
 
 **Inaccurate Cost Estimates**
-- Update pricing in `costComparison.groovy`
+- Update pricing in `lib/costComparison.groovy`
 - Check if new instance types are available
 - Verify regional pricing differences
 
@@ -301,7 +316,7 @@ For issues or questions:
 - **v1.2**: Enhanced HTML reports
 - **v1.3**: Cost optimization recommendations
 - **v1.4**: AI narrative layer (`scripts/ai_cost_comparison.py`) with Jenkins integration
-- **v1.5**: Option A is default root **`Jenkinsfile`** (`input` after reports); **`Jenkinsfile.cost-gate`** symlink; **`Jenkinsfile.parameters-first`** legacy; **`Jenkinsfile.cost-only`** two-job flow
+- **v1.6**: Remove Global Pipeline Library requirement — `lib/costComparison.groovy` + `load()` after checkout
 
 ---
 

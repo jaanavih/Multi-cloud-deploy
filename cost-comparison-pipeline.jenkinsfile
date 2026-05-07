@@ -1,9 +1,8 @@
 /**
  * Standalone Cost Comparison Pipeline
  * Run this pipeline to get cost estimates before deciding which cloud to deploy to
+ * (loads lib/costComparison.groovy from workspace — no Global Pipeline Library)
  */
-
-@Library('cost-comparison-library') _
 
 pipeline {
     agent {
@@ -57,6 +56,12 @@ spec:
     }
     
     stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
         stage('🔍 Environment Setup') {
             steps {
                 container('tools') {
@@ -87,8 +92,8 @@ spec:
                             
                             echo "🧮 Calculating costs with enhanced parameters..."
                             
-                            // Run detailed cost comparison
-                            def costResults = costComparison(costConfig)
+                            def costLib = load 'lib/costComparison.groovy'
+                            def costResults = costLib.runCostComparison(costConfig)
                             
                             // Enhanced console output
                             def awsTotal = costResults.aws.total

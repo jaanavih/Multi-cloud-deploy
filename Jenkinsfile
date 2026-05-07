@@ -4,11 +4,11 @@
  *
  * Legacy alternative (pick cloud on first parameter screen): Jenkinsfile.parameters-first
  *
+ * Cost logic is loaded from lib/costComparison.groovy after checkout (no Global Pipeline Library).
+ *
  * Jenkins cannot show HTML before the first parameter screen; review reports after the
  * build starts, then approve the input step.
  */
-@Library('cost-comparison-library') _
-
 properties([
     parameters([
         booleanParam(
@@ -80,7 +80,8 @@ node(POD_LABEL) {
                             gcpRegion: 'asia-southeast1',
                             hoursPerMonth: 730
                         ]
-                        def costResults = costComparison(costConfig)
+                        def costLib = load 'lib/costComparison.groovy'
+                        def costResults = costLib.runCostComparison(costConfig)
                         echo """
 ╔══════════════════════════════════════════════════════════════════════════════╗
 ║                           💰 COST COMPARISON RESULTS                         ║

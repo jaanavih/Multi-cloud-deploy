@@ -22,15 +22,11 @@ echo ""
 echo -e "${YELLOW}📋 Manual Setup Steps Required in Jenkins:${NC}"
 echo ""
 
-echo -e "${GREEN}1. Configure Shared Library:${NC}"
-echo "   • Go to Jenkins → Manage Jenkins → Configure System"
-echo "   • Scroll to 'Global Pipeline Libraries'"
-echo "   • Click 'Add' and configure:"
+echo -e "${GREEN}1. Global Pipeline Library (OPTIONAL):${NC}"
+echo "   • Default Jenkinsfile uses load('lib/costComparison.groovy') — no library entry needed."
+echo "   • Only if you use @Library: Manage Jenkins → Configure System → Global Pipeline Libraries"
 echo "     - Name: cost-comparison-library"
-echo "     - Default version: main (or your branch name)"
-echo "     - Source Code Management: Git"
-echo "     - Repository URL: $(git remote get-url origin 2>/dev/null || echo 'YOUR_REPO_URL')"
-echo "     - Credentials: (your git credentials if private repo)"
+echo "     - Git repo: $(git remote get-url origin 2>/dev/null || echo 'YOUR_REPO_URL')"
 
 echo ""
 echo -e "${GREEN}2. Required Jenkins Plugins:${NC}"
@@ -54,7 +50,7 @@ EOF
 
 echo ""
 echo -e "${GREEN}4. Directory Structure Created:${NC}"
-echo "   ✅ vars/costComparison.groovy (shared library function)"
+echo "   ✅ lib/costComparison.groovy (loaded after checkout)"
 echo "   ✅ cost-comparison-pipeline.jenkinsfile (standalone pipeline)"
 echo "   ✅ Jenkinsfile (updated with cost comparison stage)"
 
@@ -80,10 +76,10 @@ echo "   Set SHOW_COST_COMPARISON=true when building"
 echo ""
 echo -e "${GREEN}🚀 Next Steps:${NC}"
 echo "1. Commit and push these files to your repository"
-echo "2. Configure the shared library in Jenkins (step 1 above)"
-echo "3. Install required plugins (step 2 above)"
+echo "2. (Optional) Configure Global Pipeline Library only if you use @Library"
+echo "3. Install required plugins (see script section 2)"
 echo "4. Test with the standalone pipeline first"
-echo "5. Then test the integrated pipeline"
+echo "5. Then test the integrated pipeline (root Jenkinsfile)"
 
 echo ""
 echo -e "${YELLOW}💡 Pro Tips:${NC}"
@@ -93,57 +89,7 @@ echo "• Consider running cost comparison before major deployments"
 echo "• Use the HTML report for detailed cost breakdowns"
 
 echo ""
-echo -e "${GREEN}✅ Setup files created successfully!${NC}"
+echo -e "${GREEN}✅ Setup hints complete.${NC}"
 
-# Create a quick reference file
-cat > jenkins-cost-comparison-reference.md << 'EOF'
-# Jenkins Cost Comparison Quick Reference
-
-## Files Created
-- `vars/costComparison.groovy` - Shared library function
-- `cost-comparison-pipeline.jenkinsfile` - Standalone pipeline
-- `Jenkinsfile` - Updated with cost comparison stage
-- `setup-jenkins-library.sh` - This setup script
-
-## Usage
-
-### Standalone Pipeline
-```groovy
-// Create new pipeline job with cost-comparison-pipeline.jenkinsfile
-// Parameters: WORKLOAD_SIZE, EXPECTED_REPLICAS, AWS_REGION, GCP_REGION
-```
-
-### Integrated Pipeline
-```groovy
-// Your existing pipeline now has cost comparison
-// Set SHOW_COST_COMPARISON=true in build parameters
-```
-
-### Shared Library Function
-```groovy
-// Use in any pipeline
-def costResults = costComparison([
-    awsRegion: 'ap-southeast-1',
-    gcpRegion: 'asia-southeast1',
-    hoursPerMonth: 730
-])
-```
-
-## Cost Factors Included
-- Cluster management fees
-- Compute instances
-- Load balancers
-- Storage
-- Data transfer
-- Networking
-
-## Customization
-Modify `vars/costComparison.groovy` to:
-- Update pricing (check cloud provider websites)
-- Add new resource types
-- Include additional cost factors
-- Modify instance type mappings
-EOF
-
-echo -e "${BLUE}📖 Created reference file: jenkins-cost-comparison-reference.md${NC}"
+echo -e "${BLUE}📖 See jenkins-cost-comparison-reference.md in the repo.${NC}"
 echo ""

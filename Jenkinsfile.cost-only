@@ -3,8 +3,6 @@
  * Use when you want analysis in its own job; run your existing deploy job
  * separately with CLOUD_PROVIDER set after you review this build.
  */
-@Library('cost-comparison-library') _
-
 properties([
     parameters([
         booleanParam(
@@ -61,7 +59,8 @@ node(POD_LABEL) {
                         gcpRegion: 'asia-southeast1',
                         hoursPerMonth: 730
                     ]
-                    def costResults = costComparison(costConfig)
+                    def costLib = load 'lib/costComparison.groovy'
+                    def costResults = costLib.runCostComparison(costConfig)
                     publishHTML([
                         allowMissing: false,
                         alwaysLinkToLastBuild: true,

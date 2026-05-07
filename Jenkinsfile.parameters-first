@@ -2,8 +2,6 @@
  * Legacy: pick CLOUD_PROVIDER on the initial "Build with Parameters" screen,
  * then cost analysis (optional) and deploy. Prefer root Jenkinsfile (Option A: input after cost).
  */
-@Library('cost-comparison-library') _
-
 properties([
     parameters([
         booleanParam(
@@ -91,8 +89,8 @@ node(POD_LABEL) {
                         hoursPerMonth: 730
                     ]
                     
-                    // Run cost comparison
-                    def costResults = costComparison(costConfig)
+                    def costLib = load 'lib/costComparison.groovy'
+                    def costResults = costLib.runCostComparison(costConfig)
                     
                     // Display results in console
                     echo """
