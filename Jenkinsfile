@@ -232,9 +232,21 @@ node(POD_LABEL) {
                     ]]) {
                         if (params.ACTION == 'deploy') {
                             sh """
+                            # Add timestamp to force new deployment
+                            sed -i 's/BUILD_TIMESTAMP_PLACEHOLDER/\$(date +%s)/g' k8s/deployment.yaml
+                            
+                            echo "🚀 Deploying with timestamp: \$(date)"
                             kubectl apply -n ${params.NAMESPACE} -f k8s/deployment.yaml
                             kubectl apply -n ${params.NAMESPACE} -f k8s/service.yaml
-                            kubectl get pods,svc -n ${params.NAMESPACE}
+                            
+                            echo "📋 Waiting for rollout to complete..."
+                            kubectl rollout status deployment/hello-app -n ${params.NAMESPACE} --timeout=120s
+                            
+                            echo "✅ Current deployment status:"
+                            kubectl get pods,svc -n ${params.NAMESPACE} -l app=hello-app
+                            
+                            echo "📊 Deployment history:"
+                            kubectl rollout history deployment/hello-app -n ${params.NAMESPACE}
                             """
                         }
                         if (params.ACTION == 'delete') {
@@ -250,9 +262,21 @@ node(POD_LABEL) {
                     ]) {
                         if (params.ACTION == 'deploy') {
                             sh """
+                            # Add timestamp to force new deployment
+                            sed -i 's/BUILD_TIMESTAMP_PLACEHOLDER/\$(date +%s)/g' k8s/deployment.yaml
+                            
+                            echo "🚀 Deploying with timestamp: \$(date)"
                             kubectl apply -n ${params.NAMESPACE} -f k8s/deployment.yaml
                             kubectl apply -n ${params.NAMESPACE} -f k8s/service.yaml
-                            kubectl get pods,svc -n ${params.NAMESPACE}
+                            
+                            echo "📋 Waiting for rollout to complete..."
+                            kubectl rollout status deployment/hello-app -n ${params.NAMESPACE} --timeout=120s
+                            
+                            echo "✅ Current deployment status:"
+                            kubectl get pods,svc -n ${params.NAMESPACE} -l app=hello-app
+                            
+                            echo "📊 Deployment history:"
+                            kubectl rollout history deployment/hello-app -n ${params.NAMESPACE}
                             """
                         }
                         if (params.ACTION == 'delete') {

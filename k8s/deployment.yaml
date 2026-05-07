@@ -14,9 +14,12 @@ spec:
     spec:
       containers:
       - name: nginx
-        image: nginx
+        image: nginx:1.25-alpine
         ports:
         - containerPort: 80
+        env:
+        - name: DEPLOYMENT_TIME
+          value: "BUILD_TIMESTAMP_PLACEHOLDER"
       tolerations:
         - key: role
           operator: Equal
