@@ -77,15 +77,17 @@ node(POD_LABEL) {
                         ]
                         def costLib = load 'lib/costComparison.groovy'
                         def costResults = costLib.runCostComparison(costConfig)
+                        
+                        // Summary for pipeline description
+                        def cheaperProvider = costResults.aws.total > costResults.gcp.total ? 'GCP' : 'AWS'
+                        def savings = Math.abs(costResults.aws.total - costResults.gcp.total)
+                        def savingsPercent = Math.abs((costResults.aws.total - costResults.gcp.total) / Math.max(costResults.aws.total, costResults.gcp.total) * 100)
+                        
                         echo """
-╔══════════════════════════════════════════════════════════════════════════════╗
-║                           💰 COST COMPARISON RESULTS                         ║
-╠══════════════════════════════════════════════════════════════════════════════╣
-║  AWS EKS (${costResults.aws.region}):     \$${String.format("%.2f", costResults.aws.total)}/month                                    ║
-║  GCP GKE (${costResults.gcp.region}): \$${String.format("%.2f", costResults.gcp.total)}/month                                   ║
-║                                                                              ║
-║  💡 ${costResults.aws.total > costResults.gcp.total ? 'GCP is cheaper' : 'AWS is cheaper'} by \$${String.format("%.2f", Math.abs(costResults.aws.total - costResults.gcp.total))}/month                                        ║
-╚══════════════════════════════════════════════════════════════════════════════╝
+🎯 COST ANALYSIS COMPLETE! 
+   ${cheaperProvider} is ${String.format("%.1f", savingsPercent)}% cheaper (\$${String.format("%.2f", savings)}/month savings)
+   📊 See detailed breakdown above ⬆️
+   📋 Review HTML report after build starts ➡️
                         """
                         publishHTML([
                             allowMissing: false,
