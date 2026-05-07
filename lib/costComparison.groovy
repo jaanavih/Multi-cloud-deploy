@@ -263,8 +263,15 @@ def getCostDifferenceAnalysis(Map results) {
         'Data Transfer': Math.abs((results.aws.dataTransfer - results.gcp.dataTransfer) as double),
         'Networking': Math.abs((results.aws.networking - results.gcp.networking) as double)
     ]
-    def maxDiff = diffs.max { it.value }
-    return diffs.find { it.value == maxDiff.value }?.key ?: 'Compute'
+    def maxDiffValue = 0.0
+    def maxDiffKey = 'Compute'
+    for (entry in diffs) {
+        if (entry.value > maxDiffValue) {
+            maxDiffValue = entry.value
+            maxDiffKey = entry.key
+        }
+    }
+    return maxDiffKey
 }
 
 def getBiggestSavingsCategory(Map results) {
@@ -273,20 +280,48 @@ def getBiggestSavingsCategory(Map results) {
     
     if (awsTotal < gcpTotal) {
         // AWS is cheaper - find where AWS saves the most
-        def savings = [
+        def savingsMap = [
             'Storage': results.gcp.storage - results.aws.storage,
             'Compute': results.gcp.compute - results.aws.compute,
             'Load Balancer': results.gcp.loadBalancer - results.aws.loadBalancer
-        ].findAll { it.value > 0 }
-        return savings.max { it.value }?.key ?: 'Compute'
+        ]
+        def savings = [:]
+        for (entry in savingsMap) {
+            if (entry.value > 0) {
+                savings[entry.key] = entry.value
+            }
+        }
+        def maxSavingsValue = 0.0
+        def maxSavingsKey = 'Compute'
+        for (entry in savings) {
+            if (entry.value > maxSavingsValue) {
+                maxSavingsValue = entry.value
+                maxSavingsKey = entry.key
+            }
+        }
+        return maxSavingsKey
     } else {
         // GCP is cheaper
-        def savings = [
+        def savingsMap = [
             'Storage': results.aws.storage - results.gcp.storage,
             'Compute': results.aws.compute - results.gcp.compute,
             'Load Balancer': results.aws.loadBalancer - results.gcp.loadBalancer
-        ].findAll { it.value > 0 }
-        return savings.max { it.value }?.key ?: 'Storage'
+        ]
+        def savings = [:]
+        for (entry in savingsMap) {
+            if (entry.value > 0) {
+                savings[entry.key] = entry.value
+            }
+        }
+        def maxSavingsValue = 0.0
+        def maxSavingsKey = 'Storage'  
+        for (entry in savings) {
+            if (entry.value > maxSavingsValue) {
+                maxSavingsValue = entry.value
+                maxSavingsKey = entry.key
+            }
+        }
+        return maxSavingsKey
     }
 }
 
