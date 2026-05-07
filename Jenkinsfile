@@ -21,6 +21,11 @@ properties([
             defaultValue: 'default',
             description: 'Kubernetes namespace'
         ),
+        string(
+            name: 'GEMINI_API_KEY',
+            defaultValue: '',
+            description: 'Gemini API Key for AI-powered failure analysis (optional)'
+        ),
         choice(
             name: 'ACTION',
             choices: ['deploy', 'delete'],
@@ -187,11 +192,34 @@ node(POD_LABEL) {
                         env.BUILD_STAGE = 'Configure AWS Cluster Access'
                         echo "🚨 AWS CLUSTER ACCESS FAILED in stage: ${env.BUILD_STAGE}"
                         echo "Error: ${e.getMessage()}"
-                        sh """
-                        echo "🔍 AWS Cluster Access Debugging..."
-                        aws sts get-caller-identity || echo "AWS authentication failed"
-                        aws eks describe-cluster --region ap-southeast-1 --name hello-cluster || echo "Cluster access failed"
-                        """
+                        
+                        // Get additional context for AI analysis
+                        def awsContext = ""
+                        try {
+                            awsContext = sh(
+                                script: """
+                                echo "=== AWS IDENTITY ==="
+                                aws sts get-caller-identity 2>/dev/null || echo "AWS authentication failed"
+                                echo "=== CLUSTER STATUS ==="
+                                aws eks describe-cluster --region ap-southeast-1 --name hello-cluster 2>/dev/null || echo "Cluster access failed"
+                                """,
+                                returnStdout: true
+                            ).trim()
+                        } catch (Exception ex) {
+                            awsContext = "AWS context unavailable: ${ex.getMessage()}"
+                        }
+                        
+                        // Try AI solution if API key provided
+                        if (params.GEMINI_API_KEY && params.GEMINI_API_KEY.trim() != '') {
+                            try {
+                                echo "\n🤖 Getting AWS troubleshooting advice from Gemini AI..."
+                                def aiSolution = getGeminiSolution(e.getMessage(), awsContext, params.GEMINI_API_KEY)
+                                echo "🧠 GEMINI AI SOLUTION:\n${aiSolution}"
+                            } catch (Exception aiError) {
+                                echo "⚠️ AI analysis failed: ${aiError.getMessage()}"
+                            }
+                        }
+                        
                         throw e
                     }
                 } else if (env.TARGET_CLOUD == 'gcp') {
@@ -215,12 +243,36 @@ node(POD_LABEL) {
                         env.BUILD_STAGE = 'Configure GCP Cluster Access'
                         echo "🚨 GCP CLUSTER ACCESS FAILED in stage: ${env.BUILD_STAGE}"
                         echo "Error: ${e.getMessage()}"
-                        sh """
-                        echo "🔍 GCP Cluster Access Debugging..."
-                        gcloud auth list || echo "GCP authentication failed"
-                        gcloud config get-value project || echo "Project configuration failed"
-                        gcloud container clusters describe gke-qa2-sg1 --zone asia-southeast1 || echo "Cluster access failed"
-                        """
+                        
+                        // Get additional context for AI analysis
+                        def gcpContext = ""
+                        try {
+                            gcpContext = sh(
+                                script: """
+                                echo "=== GCP AUTHENTICATION ==="
+                                gcloud auth list 2>/dev/null || echo "GCP authentication failed"
+                                echo "=== PROJECT CONFIG ==="
+                                gcloud config get-value project 2>/dev/null || echo "Project configuration failed"
+                                echo "=== CLUSTER STATUS ==="
+                                gcloud container clusters describe gke-qa2-sg1 --zone asia-southeast1 2>/dev/null || echo "Cluster access failed"
+                                """,
+                                returnStdout: true
+                            ).trim()
+                        } catch (Exception ex) {
+                            gcpContext = "GCP context unavailable: ${ex.getMessage()}"
+                        }
+                        
+                        // Try AI solution if API key provided
+                        if (params.GEMINI_API_KEY && params.GEMINI_API_KEY.trim() != '') {
+                            try {
+                                echo "\n🤖 Getting GCP troubleshooting advice from Gemini AI..."
+                                def aiSolution = getGeminiSolution(e.getMessage(), gcpContext, params.GEMINI_API_KEY)
+                                echo "🧠 GEMINI AI SOLUTION:\n${aiSolution}"
+                            } catch (Exception aiError) {
+                                echo "⚠️ AI analysis failed: ${aiError.getMessage()}"
+                            }
+                        }
+                        
                         throw e
                     }
                 }
@@ -302,36 +354,100 @@ node(POD_LABEL) {
    Failed Stage: Deploy Application
    Namespace: ${params.NAMESPACE}
    Target Cloud: ${env.TARGET_CLOUD}
-   Build Number: #${env.BUILD_NUMBER}
+   Build Number: #${env.BUILD_NUMBER}"""
 
-📊 DETECTED ISSUES:"""
-                                
-                                // Analyze the error message for common patterns
-                                def errorMsg = e.getMessage().toLowerCase()
-                                if (errorMsg.contains('namespace') && errorMsg.contains('not found')) {
-                                    echo "   • Namespace Not Found - Target namespace '${params.NAMESPACE}' doesn't exist"
-                                } else if (errorMsg.contains('unauthorized') || errorMsg.contains('forbidden')) {
-                                    echo "   • Permission Denied - Insufficient RBAC permissions"
-                                } else if (errorMsg.contains('connection refused') || errorMsg.contains('timeout')) {
-                                    echo "   • Network/Connection Issue - Cannot reach Kubernetes API"
-                                } else if (errorMsg.contains('image') && errorMsg.contains('pull')) {
-                                    echo "   • Image Pull Error - Container image not accessible"
-                                } else {
-                                    echo "   • General Deployment Error - Check logs above for details"
+                                // Get additional context for AI analysis
+                                def additionalContext = ""
+                                try {
+                                    additionalContext = sh(
+                                        script: """
+                                        echo "=== CLUSTER INFO ==="
+                                        kubectl cluster-info 2>/dev/null || echo "Cluster info unavailable"
+                                        echo "=== NAMESPACES ==="
+                                        kubectl get namespaces 2>/dev/null || echo "Cannot list namespaces"
+                                        echo "=== EVENTS ==="
+                                        kubectl get events -n ${params.NAMESPACE} --sort-by='.lastTimestamp' 2>/dev/null | tail -5 || echo "No events found"
+                                        """,
+                                        returnStdout: true
+                                    ).trim()
+                                } catch (Exception ex) {
+                                    additionalContext = "Context unavailable: ${ex.getMessage()}"
                                 }
-                                
-                                echo """
-🚨 ROOT CAUSE: Namespace '${params.NAMESPACE}' not found in cluster
 
+                                // Try to get AI-powered solution from Gemini
+                                if (params.GEMINI_API_KEY && params.GEMINI_API_KEY.trim() != '') {
+                                    echo "\n🤖 GETTING AI-POWERED SOLUTION FROM GEMINI..."
+                                    try {
+                                        def aiSolution = getGeminiSolution(e.getMessage(), additionalContext, params.GEMINI_API_KEY)
+                                        echo """
+🧠 GEMINI AI ANALYSIS:
+${aiSolution}"""
+                                    } catch (Exception aiError) {
+                                        echo """
+⚠️ AI Analysis Failed: ${aiError.getMessage()}
+🔄 Falling back to standard error analysis..."""
+                                        
+                                        // Fallback to pattern matching
+                                        def errorMsg = e.getMessage().toLowerCase()
+                                        echo "\n📊 DETECTED ISSUES:"
+                                        if (errorMsg.contains('namespace') && errorMsg.contains('not found')) {
+                                            echo "   • Namespace Not Found - Target namespace '${params.NAMESPACE}' doesn't exist"
+                                        } else if (errorMsg.contains('unauthorized') || errorMsg.contains('forbidden')) {
+                                            echo "   • Permission Denied - Insufficient RBAC permissions"
+                                        } else if (errorMsg.contains('connection refused') || errorMsg.contains('timeout')) {
+                                            echo "   • Network/Connection Issue - Cannot reach Kubernetes API"
+                                        } else if (errorMsg.contains('image') && errorMsg.contains('pull')) {
+                                            echo "   • Image Pull Error - Container image not accessible"
+                                        } else {
+                                            echo "   • General Deployment Error - Check logs above for details"
+                                        }
+                                    }
+                                } else {
+                                    echo """
+
+ℹ️  For AI-powered failure analysis, provide your Gemini API key in the GEMINI_API_KEY parameter.
+🔄 Using standard pattern matching analysis..."""
+                                    
+                                    // Standard pattern matching
+                                    def errorMsg = e.getMessage().toLowerCase()
+                                    echo "\n📊 DETECTED ISSUES:"
+                                    if (errorMsg.contains('namespace') && errorMsg.contains('not found')) {
+                                        echo "   • Namespace Not Found - Target namespace '${params.NAMESPACE}' doesn't exist"
+                                        echo """
 💡 IMMEDIATE FIX:
    1. Create the namespace: kubectl create namespace ${params.NAMESPACE}
    2. Or use existing namespace (e.g., 'default')
-   3. Verify namespace exists: kubectl get namespaces
+   3. Verify namespace exists: kubectl get namespaces"""
+                                    } else if (errorMsg.contains('unauthorized') || errorMsg.contains('forbidden')) {
+                                        echo "   • Permission Denied - Insufficient RBAC permissions"
+                                        echo """
+💡 IMMEDIATE FIX:
+   1. Check service account permissions
+   2. Verify RBAC policies allow deployment
+   3. Ensure correct credentials are configured"""
+                                    } else if (errorMsg.contains('connection refused') || errorMsg.contains('timeout')) {
+                                        echo "   • Network/Connection Issue - Cannot reach Kubernetes API"
+                                        echo """
+💡 IMMEDIATE FIX:
+   1. Check network connectivity to cluster
+   2. Verify cluster endpoint is accessible
+   3. Check firewall/security group settings"""
+                                    } else {
+                                        echo "   • General Deployment Error - Check logs above for details"
+                                        echo """
+💡 GENERAL TROUBLESHOOTING:
+   1. Check the full build log for detailed error messages
+   2. Verify all prerequisites are met
+   3. Test kubectl commands manually"""
+                                    }
+                                }
+                                
+                                echo """
 
 🔧 TROUBLESHOOTING COMMANDS:
    kubectl get namespaces                    # List all namespaces
    kubectl create namespace ${params.NAMESPACE}     # Create missing namespace
-   kubectl get pods -n ${params.NAMESPACE} || echo "Namespace not found"
+   kubectl get events -n ${params.NAMESPACE} --sort-by='.lastTimestamp'  # Check events
 
 🔗 BUILD DETAILS:
    Build URL: ${env.BUILD_URL}
@@ -430,36 +546,100 @@ node(POD_LABEL) {
    Failed Stage: Deploy Application
    Namespace: ${params.NAMESPACE}
    Target Cloud: ${env.TARGET_CLOUD}
-   Build Number: #${env.BUILD_NUMBER}
+   Build Number: #${env.BUILD_NUMBER}"""
 
-📊 DETECTED ISSUES:"""
-                                
-                                // Analyze the error message for common patterns
-                                def errorMsg = e.getMessage().toLowerCase()
-                                if (errorMsg.contains('namespace') && errorMsg.contains('not found')) {
-                                    echo "   • Namespace Not Found - Target namespace '${params.NAMESPACE}' doesn't exist"
-                                } else if (errorMsg.contains('unauthorized') || errorMsg.contains('forbidden')) {
-                                    echo "   • Permission Denied - Insufficient RBAC permissions"
-                                } else if (errorMsg.contains('connection refused') || errorMsg.contains('timeout')) {
-                                    echo "   • Network/Connection Issue - Cannot reach Kubernetes API"
-                                } else if (errorMsg.contains('image') && errorMsg.contains('pull')) {
-                                    echo "   • Image Pull Error - Container image not accessible"
-                                } else {
-                                    echo "   • General Deployment Error - Check logs above for details"
+                                // Get additional context for AI analysis
+                                def additionalContext = ""
+                                try {
+                                    additionalContext = sh(
+                                        script: """
+                                        echo "=== CLUSTER INFO ==="
+                                        kubectl cluster-info 2>/dev/null || echo "Cluster info unavailable"
+                                        echo "=== NAMESPACES ==="
+                                        kubectl get namespaces 2>/dev/null || echo "Cannot list namespaces"
+                                        echo "=== EVENTS ==="
+                                        kubectl get events -n ${params.NAMESPACE} --sort-by='.lastTimestamp' 2>/dev/null | tail -5 || echo "No events found"
+                                        """,
+                                        returnStdout: true
+                                    ).trim()
+                                } catch (Exception ex) {
+                                    additionalContext = "Context unavailable: ${ex.getMessage()}"
                                 }
-                                
-                                echo """
-🚨 ROOT CAUSE: Namespace '${params.NAMESPACE}' not found in cluster
 
+                                // Try to get AI-powered solution from Gemini
+                                if (params.GEMINI_API_KEY && params.GEMINI_API_KEY.trim() != '') {
+                                    echo "\n🤖 GETTING AI-POWERED SOLUTION FROM GEMINI..."
+                                    try {
+                                        def aiSolution = getGeminiSolution(e.getMessage(), additionalContext, params.GEMINI_API_KEY)
+                                        echo """
+🧠 GEMINI AI ANALYSIS:
+${aiSolution}"""
+                                    } catch (Exception aiError) {
+                                        echo """
+⚠️ AI Analysis Failed: ${aiError.getMessage()}
+🔄 Falling back to standard error analysis..."""
+                                        
+                                        // Fallback to pattern matching
+                                        def errorMsg = e.getMessage().toLowerCase()
+                                        echo "\n📊 DETECTED ISSUES:"
+                                        if (errorMsg.contains('namespace') && errorMsg.contains('not found')) {
+                                            echo "   • Namespace Not Found - Target namespace '${params.NAMESPACE}' doesn't exist"
+                                        } else if (errorMsg.contains('unauthorized') || errorMsg.contains('forbidden')) {
+                                            echo "   • Permission Denied - Insufficient RBAC permissions"
+                                        } else if (errorMsg.contains('connection refused') || errorMsg.contains('timeout')) {
+                                            echo "   • Network/Connection Issue - Cannot reach Kubernetes API"
+                                        } else if (errorMsg.contains('image') && errorMsg.contains('pull')) {
+                                            echo "   • Image Pull Error - Container image not accessible"
+                                        } else {
+                                            echo "   • General Deployment Error - Check logs above for details"
+                                        }
+                                    }
+                                } else {
+                                    echo """
+
+ℹ️  For AI-powered failure analysis, provide your Gemini API key in the GEMINI_API_KEY parameter.
+🔄 Using standard pattern matching analysis..."""
+                                    
+                                    // Standard pattern matching
+                                    def errorMsg = e.getMessage().toLowerCase()
+                                    echo "\n📊 DETECTED ISSUES:"
+                                    if (errorMsg.contains('namespace') && errorMsg.contains('not found')) {
+                                        echo "   • Namespace Not Found - Target namespace '${params.NAMESPACE}' doesn't exist"
+                                        echo """
 💡 IMMEDIATE FIX:
    1. Create the namespace: kubectl create namespace ${params.NAMESPACE}
    2. Or use existing namespace (e.g., 'default')
-   3. Verify namespace exists: kubectl get namespaces
+   3. Verify namespace exists: kubectl get namespaces"""
+                                    } else if (errorMsg.contains('unauthorized') || errorMsg.contains('forbidden')) {
+                                        echo "   • Permission Denied - Insufficient RBAC permissions"
+                                        echo """
+💡 IMMEDIATE FIX:
+   1. Check service account permissions
+   2. Verify RBAC policies allow deployment
+   3. Ensure correct credentials are configured"""
+                                    } else if (errorMsg.contains('connection refused') || errorMsg.contains('timeout')) {
+                                        echo "   • Network/Connection Issue - Cannot reach Kubernetes API"
+                                        echo """
+💡 IMMEDIATE FIX:
+   1. Check network connectivity to cluster
+   2. Verify cluster endpoint is accessible
+   3. Check firewall/security group settings"""
+                                    } else {
+                                        echo "   • General Deployment Error - Check logs above for details"
+                                        echo """
+💡 GENERAL TROUBLESHOOTING:
+   1. Check the full build log for detailed error messages
+   2. Verify all prerequisites are met
+   3. Test kubectl commands manually"""
+                                    }
+                                }
+                                
+                                echo """
 
 🔧 TROUBLESHOOTING COMMANDS:
    kubectl get namespaces                    # List all namespaces
    kubectl create namespace ${params.NAMESPACE}     # Create missing namespace
-   kubectl get pods -n ${params.NAMESPACE} || echo "Namespace not found"
+   kubectl get events -n ${params.NAMESPACE} --sort-by='.lastTimestamp'  # Check events
 
 🔗 BUILD DETAILS:
    Build URL: ${env.BUILD_URL}
@@ -491,5 +671,56 @@ node(POD_LABEL) {
                 }
             }
         }
+    }
+}
+
+// Function to get AI-powered solution from Gemini
+def getGeminiSolution(String errorMessage, String context, String apiKey) {
+    def prompt = """
+You are a Kubernetes deployment expert. Analyze this Jenkins pipeline failure and provide a concise solution.
+
+ERROR MESSAGE:
+${errorMessage}
+
+ADDITIONAL CONTEXT:
+${context}
+
+DEPLOYMENT INFO:
+- Cloud: ${env.TARGET_CLOUD ?: 'Unknown'}
+- Namespace: ${params.NAMESPACE}
+- Action: ${params.ACTION}
+- Stage: Deploy Application
+
+Please provide:
+1. Root Cause (1-2 sentences)
+2. Immediate Fix (2-3 specific commands)
+3. Prevention (1 tip to avoid this in future)
+
+Keep response under 200 words and focus on actionable solutions.
+"""
+
+    def response = sh(
+        script: """
+        curl -s -X POST "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}" \\
+        -H "Content-Type: application/json" \\
+        -d '{
+            "contents": [{
+                "parts": [{
+                    "text": "${prompt.replace('"', '\\"').replace('\n', '\\n')}"
+                }]
+            }],
+            "generationConfig": {
+                "maxOutputTokens": 300,
+                "temperature": 0.1
+            }
+        }' | jq -r '.candidates[0].content.parts[0].text // "AI analysis unavailable"'
+        """,
+        returnStdout: true
+    ).trim()
+
+    if (response && response != "AI analysis unavailable" && response != "null") {
+        return response
+    } else {
+        throw new Exception("Gemini API returned empty or invalid response")
     }
 }
