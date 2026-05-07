@@ -78,14 +78,14 @@ node(POD_LABEL) {
                         def costLib = load 'lib/costComparison.groovy'
                         def costResults = costLib.runCostComparison(costConfig)
                         
-                        // Summary for pipeline description
-                        def cheaperProvider = costResults.aws.total > costResults.gcp.total ? 'GCP' : 'AWS'
-                        def savings = Math.abs(costResults.aws.total - costResults.gcp.total)
-                        def savingsPercent = Math.abs((costResults.aws.total - costResults.gcp.total) / Math.max(costResults.aws.total, costResults.gcp.total) * 100)
+                        // Summary for pipeline description (use local variables to avoid conflict)
+                        def pipelineCheaperProvider = costResults.aws.total > costResults.gcp.total ? 'GCP' : 'AWS'
+                        def pipelineSavings = Math.abs(costResults.aws.total - costResults.gcp.total)
+                        def pipelineSavingsPercent = Math.abs((costResults.aws.total - costResults.gcp.total) / Math.max(costResults.aws.total, costResults.gcp.total) * 100)
                         
                         echo """
 🎯 COST ANALYSIS COMPLETE! 
-   ${cheaperProvider} is ${String.format("%.1f", savingsPercent)}% cheaper (\$${String.format("%.2f", savings)}/month savings)
+   ${pipelineCheaperProvider} is ${String.format("%.1f", pipelineSavingsPercent)}% cheaper (\$${String.format("%.2f", pipelineSavings)}/month savings)
    📊 See detailed breakdown above ⬆️
    📋 Review HTML report after build starts ➡️
                         """
@@ -99,9 +99,7 @@ node(POD_LABEL) {
                             reportTitles: 'Multi-Cloud Cost Analysis'
                         ])
                         // Store cost results in build description instead of env var (writeJSON not available)
-                        def cheaperProvider = costResults.aws.total > costResults.gcp.total ? 'GCP' : 'AWS'
-                        def savings = Math.abs(costResults.aws.total - costResults.gcp.total)
-                        currentBuild.description = "💰 ${cheaperProvider} cheaper by \$${String.format("%.2f", savings)}/month (pick cloud next)"
+                        currentBuild.description = "💰 ${pipelineCheaperProvider} cheaper by \$${String.format("%.2f", pipelineSavings)}/month (pick cloud next)"
                     } catch (Exception e) {
                         echo "⚠️  Cost comparison failed: ${e.message}"
                     }
