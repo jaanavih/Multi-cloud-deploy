@@ -409,21 +409,9 @@ spec:
                             } catch (Exception e) {
                                 env.BUILD_STAGE = 'Deploy Application'
                                 
-                                // Comprehensive failure analysis
-                                echo """
-╔════════════════════════════════════════════════════════════════════════════════╗
-║                          🚨 BUILD FAILURE ANALYSIS 🚨                          ║
-╚════════════════════════════════════════════════════════════════════════════════╝
-
-🚨 DEPLOYMENT FAILED in stage: ${env.BUILD_STAGE}
-📋 Error Message: ${e.getMessage()}
-
-🔍 FAILURE ANALYSIS:
-   Build Status: FAILURE  
-   Failed Stage: Deploy Application
-   Namespace: ${params.NAMESPACE}
-   Target Cloud: ${env.TARGET_CLOUD}
-   Build Number: #${env.BUILD_NUMBER}"""
+                                // Store failure info for final summary (verbose analysis suppressed)
+                                env.BUILD_ERROR = e.getMessage()
+                                env.BUILD_FAILED = 'true'
 
                                 // Get additional context for AI analysis
                                 def additionalContext = ""
@@ -445,95 +433,52 @@ spec:
 
                                 // Try to get AI-powered solution from Gemini
                                 if (params.ENABLE_AI_ANALYSIS) {
-                                    echo "\n🤖 GETTING AI-POWERED SOLUTION FROM GEMINI..."
+                                    // echo "\n🤖 GETTING AI-POWERED SOLUTION FROM GEMINI..." // Suppressed - show in final summary
                                     try {
                                         def aiSolution = getAISolution(e.getMessage(), additionalContext)
-                                        echo """
-🧠 GEMINI AI ANALYSIS:
-${aiSolution}"""
+                                        env.AI_FIX = aiSolution  // Store for final summary
                                     } catch (Exception aiError) {
-                                        echo """
-⚠️ AI Analysis Failed: ${aiError.getMessage()}
-🔄 Falling back to standard error analysis..."""
+                                        // AI failed, use fallback fix
                                         
                                         // Fallback to pattern matching
                                         def errorMsg = e.getMessage().toLowerCase()
-                                        echo "\n📊 DETECTED ISSUES:"
+                                        // Generate simple fix based on error pattern
                                         if (errorMsg.contains('namespace') && errorMsg.contains('not found')) {
-                                            echo "   • Namespace Not Found - Target namespace '${params.NAMESPACE}' doesn't exist"
+                                            env.AI_FIX = "Namespace '${params.NAMESPACE}' not found. Fix: kubectl create namespace ${params.NAMESPACE}"
                                         } else if (errorMsg.contains('unauthorized') || errorMsg.contains('forbidden')) {
-                                            echo "   • Permission Denied - Insufficient RBAC permissions"
+                                            env.AI_FIX = "Permission denied. Fix: Check RBAC policies and service account permissions"
                                         } else if (errorMsg.contains('connection refused') || errorMsg.contains('timeout')) {
-                                            echo "   • Network/Connection Issue - Cannot reach Kubernetes API"
+                                            env.AI_FIX = "Network connectivity issue. Fix: Check cluster endpoint and firewall settings"
                                         } else if (errorMsg.contains('image') && errorMsg.contains('pull')) {
-                                            echo "   • Image Pull Error - Container image not accessible"
+                                            env.AI_FIX = "Image pull failed. Fix: Check image name, registry access, and credentials"
                                         } else {
-                                            echo "   • General Deployment Error - Check logs above for details"
+                                            env.AI_FIX = "General deployment error. Fix: Check deployment manifests and cluster resources"
                                         }
                                     }
                                 } else {
-                                    echo """
-
-ℹ️  AI analysis disabled. Enable 'ENABLE_AI_ANALYSIS' and add 'gemini-api-key' to Jenkins credentials for smart failure analysis.
-🔄 Using standard pattern matching analysis..."""
+                                    // AI analysis disabled - use pattern matching for fix
                                     
                                     // Standard pattern matching
                                     def errorMsg = e.getMessage().toLowerCase()
                                     echo "\n📊 DETECTED ISSUES:"
                                     if (errorMsg.contains('namespace') && errorMsg.contains('not found')) {
-                                        echo "   • Namespace Not Found - Target namespace '${params.NAMESPACE}' doesn't exist"
-                                        echo """
-💡 IMMEDIATE FIX:
-   1. Create the namespace: kubectl create namespace ${params.NAMESPACE}
-   2. Or use existing namespace (e.g., 'default')
-   3. Verify namespace exists: kubectl get namespaces"""
+                                        // Namespace error detected
+                                        // Fix stored in env.AI_FIX above
                                     } else if (errorMsg.contains('unauthorized') || errorMsg.contains('forbidden')) {
-                                        echo "   • Permission Denied - Insufficient RBAC permissions"
-                                        echo """
-💡 IMMEDIATE FIX:
-   1. Check service account permissions
-   2. Verify RBAC policies allow deployment
-   3. Ensure correct credentials are configured"""
+                                        // Permission error detected
+                                        // Fix stored in env.AI_FIX above
                                     } else if (errorMsg.contains('connection refused') || errorMsg.contains('timeout')) {
-                                        echo "   • Network/Connection Issue - Cannot reach Kubernetes API"
-                                        echo """
-💡 IMMEDIATE FIX:
-   1. Check network connectivity to cluster
-   2. Verify cluster endpoint is accessible
-   3. Check firewall/security group settings"""
+                                        // Network error detected
+                                        // Fix stored in env.AI_FIX above
                                     } else {
-                                        echo "   • General Deployment Error - Check logs above for details"
-                                        echo """
-💡 GENERAL TROUBLESHOOTING:
-   1. Check the full build log for detailed error messages
-   2. Verify all prerequisites are met
-   3. Test kubectl commands manually"""
+                                        // General error detected
+                                        // Fix stored in env.AI_FIX above
                                     }
                                 }
                                 
-                                echo """
-
-🔧 TROUBLESHOOTING COMMANDS:
-   kubectl get namespaces                    # List all namespaces
-   kubectl create namespace ${params.NAMESPACE}     # Create missing namespace
-   kubectl get events -n ${params.NAMESPACE} --sort-by='.lastTimestamp'  # Check events
-
-🔗 BUILD DETAILS:
-   Build URL: ${env.BUILD_URL}
-   Workspace: ${env.WORKSPACE}
-   
-════════════════════════════════════════════════════════════════════════════════"""
+                                // Troubleshooting details suppressed - show in final summary
                                 
-                                // Get additional debugging info
-                                sh """
-                                echo "🔍 Additional debugging information..."
-                                echo "Available namespaces:"
-                                kubectl get namespaces || echo "Cannot list namespaces"
-                                echo "Current kubectl context:"
-                                kubectl config current-context || echo "No context available"
-                                echo "Cluster info:"
-                                kubectl cluster-info || echo "Cannot get cluster info"
-                                """
+                                // Additional debugging suppressed for cleaner output
                                 
                                 throw e
                             }
@@ -605,21 +550,9 @@ ${aiSolution}"""
                             } catch (Exception e) {
                                 env.BUILD_STAGE = 'Deploy Application'
                                 
-                                // Comprehensive failure analysis
-                                echo """
-╔════════════════════════════════════════════════════════════════════════════════╗
-║                          🚨 BUILD FAILURE ANALYSIS 🚨                          ║
-╚════════════════════════════════════════════════════════════════════════════════╝
-
-🚨 DEPLOYMENT FAILED in stage: ${env.BUILD_STAGE}
-📋 Error Message: ${e.getMessage()}
-
-🔍 FAILURE ANALYSIS:
-   Build Status: FAILURE  
-   Failed Stage: Deploy Application
-   Namespace: ${params.NAMESPACE}
-   Target Cloud: ${env.TARGET_CLOUD}
-   Build Number: #${env.BUILD_NUMBER}"""
+                                // Store failure info for final summary (verbose analysis suppressed)
+                                env.BUILD_ERROR = e.getMessage()
+                                env.BUILD_FAILED = 'true'
 
                                 // Get additional context for AI analysis
                                 def additionalContext = ""
@@ -641,95 +574,52 @@ ${aiSolution}"""
 
                                 // Try to get AI-powered solution from Gemini
                                 if (params.ENABLE_AI_ANALYSIS) {
-                                    echo "\n🤖 GETTING AI-POWERED SOLUTION FROM GEMINI..."
+                                    // echo "\n🤖 GETTING AI-POWERED SOLUTION FROM GEMINI..." // Suppressed - show in final summary
                                     try {
                                         def aiSolution = getAISolution(e.getMessage(), additionalContext)
-                                        echo """
-🧠 GEMINI AI ANALYSIS:
-${aiSolution}"""
+                                        env.AI_FIX = aiSolution  // Store for final summary
                                     } catch (Exception aiError) {
-                                        echo """
-⚠️ AI Analysis Failed: ${aiError.getMessage()}
-🔄 Falling back to standard error analysis..."""
+                                        // AI failed, use fallback fix
                                         
                                         // Fallback to pattern matching
                                         def errorMsg = e.getMessage().toLowerCase()
-                                        echo "\n📊 DETECTED ISSUES:"
+                                        // Generate simple fix based on error pattern
                                         if (errorMsg.contains('namespace') && errorMsg.contains('not found')) {
-                                            echo "   • Namespace Not Found - Target namespace '${params.NAMESPACE}' doesn't exist"
+                                            env.AI_FIX = "Namespace '${params.NAMESPACE}' not found. Fix: kubectl create namespace ${params.NAMESPACE}"
                                         } else if (errorMsg.contains('unauthorized') || errorMsg.contains('forbidden')) {
-                                            echo "   • Permission Denied - Insufficient RBAC permissions"
+                                            env.AI_FIX = "Permission denied. Fix: Check RBAC policies and service account permissions"
                                         } else if (errorMsg.contains('connection refused') || errorMsg.contains('timeout')) {
-                                            echo "   • Network/Connection Issue - Cannot reach Kubernetes API"
+                                            env.AI_FIX = "Network connectivity issue. Fix: Check cluster endpoint and firewall settings"
                                         } else if (errorMsg.contains('image') && errorMsg.contains('pull')) {
-                                            echo "   • Image Pull Error - Container image not accessible"
+                                            env.AI_FIX = "Image pull failed. Fix: Check image name, registry access, and credentials"
                                         } else {
-                                            echo "   • General Deployment Error - Check logs above for details"
+                                            env.AI_FIX = "General deployment error. Fix: Check deployment manifests and cluster resources"
                                         }
                                     }
                                 } else {
-                                    echo """
-
-ℹ️  AI analysis disabled. Enable 'ENABLE_AI_ANALYSIS' and add 'gemini-api-key' to Jenkins credentials for smart failure analysis.
-🔄 Using standard pattern matching analysis..."""
+                                    // AI analysis disabled - use pattern matching for fix
                                     
                                     // Standard pattern matching
                                     def errorMsg = e.getMessage().toLowerCase()
                                     echo "\n📊 DETECTED ISSUES:"
                                     if (errorMsg.contains('namespace') && errorMsg.contains('not found')) {
-                                        echo "   • Namespace Not Found - Target namespace '${params.NAMESPACE}' doesn't exist"
-                                        echo """
-💡 IMMEDIATE FIX:
-   1. Create the namespace: kubectl create namespace ${params.NAMESPACE}
-   2. Or use existing namespace (e.g., 'default')
-   3. Verify namespace exists: kubectl get namespaces"""
+                                        // Namespace error detected
+                                        // Fix stored in env.AI_FIX above
                                     } else if (errorMsg.contains('unauthorized') || errorMsg.contains('forbidden')) {
-                                        echo "   • Permission Denied - Insufficient RBAC permissions"
-                                        echo """
-💡 IMMEDIATE FIX:
-   1. Check service account permissions
-   2. Verify RBAC policies allow deployment
-   3. Ensure correct credentials are configured"""
+                                        // Permission error detected
+                                        // Fix stored in env.AI_FIX above
                                     } else if (errorMsg.contains('connection refused') || errorMsg.contains('timeout')) {
-                                        echo "   • Network/Connection Issue - Cannot reach Kubernetes API"
-                                        echo """
-💡 IMMEDIATE FIX:
-   1. Check network connectivity to cluster
-   2. Verify cluster endpoint is accessible
-   3. Check firewall/security group settings"""
+                                        // Network error detected
+                                        // Fix stored in env.AI_FIX above
                                     } else {
-                                        echo "   • General Deployment Error - Check logs above for details"
-                                        echo """
-💡 GENERAL TROUBLESHOOTING:
-   1. Check the full build log for detailed error messages
-   2. Verify all prerequisites are met
-   3. Test kubectl commands manually"""
+                                        // General error detected
+                                        // Fix stored in env.AI_FIX above
                                     }
                                 }
                                 
-                                echo """
-
-🔧 TROUBLESHOOTING COMMANDS:
-   kubectl get namespaces                    # List all namespaces
-   kubectl create namespace ${params.NAMESPACE}     # Create missing namespace
-   kubectl get events -n ${params.NAMESPACE} --sort-by='.lastTimestamp'  # Check events
-
-🔗 BUILD DETAILS:
-   Build URL: ${env.BUILD_URL}
-   Workspace: ${env.WORKSPACE}
-   
-════════════════════════════════════════════════════════════════════════════════"""
+                                // Troubleshooting details suppressed - show in final summary
                                 
-                                // Get additional debugging info
-                                sh """
-                                echo "🔍 Additional debugging information..."
-                                echo "Available namespaces:"
-                                kubectl get namespaces || echo "Cannot list namespaces"
-                                echo "Current kubectl context:"
-                                kubectl config current-context || echo "No context available"
-                                echo "Cluster info:"
-                                kubectl cluster-info || echo "Cannot get cluster info"
-                                """
+                                // Additional debugging suppressed for cleaner output
                                 
                                 throw e
                             }
