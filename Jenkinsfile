@@ -348,8 +348,7 @@ spec:
     stage('Deploy/Delete Application') {
         container('tools') {
             script {
-                try {
-                    if (env.TARGET_CLOUD == 'aws') {
+                if (env.TARGET_CLOUD == 'aws') {
                     withCredentials([[
                         $class: 'AmazonWebServicesCredentialsBinding',
                         credentialsId: 'aws-creds'
@@ -437,7 +436,22 @@ spec:
                                     // echo "\n🤖 GETTING AI-POWERED SOLUTION FROM GEMINI..." // Suppressed - show in final summary
                                     try {
                                         def aiSolution = getAISolution(e.getMessage(), additionalContext)
-                                        env.AI_FIX = aiSolution  // Store for final summary
+                                        echo """
+
+╔════════════════════════════════════════════════════════════════════════════════╗
+║                            BUILD FAILURE ANALYSIS                              ║
+╚════════════════════════════════════════════════════════════════════════════════╝
+
+🚨 REASON: ${e.getMessage()}
+
+📋 FAILED STAGE: ${env.BUILD_STAGE}
+
+┌────────────────────────────────────────────────────────────────────────────────┐
+│                                  AI FIX                                        │
+├────────────────────────────────────────────────────────────────────────────────┤
+│ ${aiSolution}                                                                  │
+└────────────────────────────────────────────────────────────────────────────────┘
+"""
                                     } catch (Exception aiError) {
                                         // AI failed, use fallback fix
                                         
@@ -455,34 +469,61 @@ spec:
                                         } else {
                                             env.AI_FIX = "General deployment error. Fix: Check deployment manifests and cluster resources"
                                         }
+                                        
+                                        echo """
+
+╔════════════════════════════════════════════════════════════════════════════════╗
+║                            BUILD FAILURE ANALYSIS                              ║
+╚════════════════════════════════════════════════════════════════════════════════╝
+
+🚨 REASON: ${e.getMessage()}
+
+📋 FAILED STAGE: ${env.BUILD_STAGE}
+
+┌────────────────────────────────────────────────────────────────────────────────┐
+│                                  AI FIX                                        │
+├────────────────────────────────────────────────────────────────────────────────┤
+│ ${env.AI_FIX}                                                                  │
+└────────────────────────────────────────────────────────────────────────────────┘
+"""
                                     }
                                 } else {
                                     // AI analysis disabled - use pattern matching for fix
-                                    
-                                    // Standard pattern matching
                                     def errorMsg = e.getMessage().toLowerCase()
-                                    echo "\n📊 DETECTED ISSUES:"
+                                    def manualFix = ""
                                     if (errorMsg.contains('namespace') && errorMsg.contains('not found')) {
-                                        // Namespace error detected
-                                        // Fix stored in env.AI_FIX above
+                                        manualFix = "Namespace '${params.NAMESPACE}' not found. Fix: kubectl create namespace ${params.NAMESPACE}"
                                     } else if (errorMsg.contains('unauthorized') || errorMsg.contains('forbidden')) {
-                                        // Permission error detected
-                                        // Fix stored in env.AI_FIX above
+                                        manualFix = "Permission denied. Fix: Check RBAC policies and service account permissions"
                                     } else if (errorMsg.contains('connection refused') || errorMsg.contains('timeout')) {
-                                        // Network error detected
-                                        // Fix stored in env.AI_FIX above
+                                        manualFix = "Network connectivity issue. Fix: Check cluster endpoint and firewall settings"
                                     } else {
-                                        // General error detected
-                                        // Fix stored in env.AI_FIX above
+                                        manualFix = "General deployment error. Fix: Check deployment manifests and cluster resources"
                                     }
+                                    
+                                    echo """
+
+╔════════════════════════════════════════════════════════════════════════════════╗
+║                            BUILD FAILURE ANALYSIS                              ║
+╚════════════════════════════════════════════════════════════════════════════════╝
+
+🚨 REASON: ${e.getMessage()}
+
+📋 FAILED STAGE: ${env.BUILD_STAGE}
+
+┌────────────────────────────────────────────────────────────────────────────────┐
+│                                 MANUAL FIX                                     │
+├────────────────────────────────────────────────────────────────────────────────┤
+│ ${manualFix}                                                                   │
+└────────────────────────────────────────────────────────────────────────────────┘
+"""
                                 }
                                 
                                 // Troubleshooting details suppressed - show in final summary
                                 
                                 // Additional debugging suppressed for cleaner output
                                 
-                                // Don't throw - let pipeline continue to summary stage
-                                currentBuild.result = 'FAILURE'
+                                throw e
                             }
                         }
                         if (params.ACTION == 'delete') {
@@ -579,7 +620,22 @@ spec:
                                     // echo "\n🤖 GETTING AI-POWERED SOLUTION FROM GEMINI..." // Suppressed - show in final summary
                                     try {
                                         def aiSolution = getAISolution(e.getMessage(), additionalContext)
-                                        env.AI_FIX = aiSolution  // Store for final summary
+                                        echo """
+
+╔════════════════════════════════════════════════════════════════════════════════╗
+║                            BUILD FAILURE ANALYSIS                              ║
+╚════════════════════════════════════════════════════════════════════════════════╝
+
+🚨 REASON: ${e.getMessage()}
+
+📋 FAILED STAGE: ${env.BUILD_STAGE}
+
+┌────────────────────────────────────────────────────────────────────────────────┐
+│                                  AI FIX                                        │
+├────────────────────────────────────────────────────────────────────────────────┤
+│ ${aiSolution}                                                                  │
+└────────────────────────────────────────────────────────────────────────────────┘
+"""
                                     } catch (Exception aiError) {
                                         // AI failed, use fallback fix
                                         
@@ -597,34 +653,61 @@ spec:
                                         } else {
                                             env.AI_FIX = "General deployment error. Fix: Check deployment manifests and cluster resources"
                                         }
+                                        
+                                        echo """
+
+╔════════════════════════════════════════════════════════════════════════════════╗
+║                            BUILD FAILURE ANALYSIS                              ║
+╚════════════════════════════════════════════════════════════════════════════════╝
+
+🚨 REASON: ${e.getMessage()}
+
+📋 FAILED STAGE: ${env.BUILD_STAGE}
+
+┌────────────────────────────────────────────────────────────────────────────────┐
+│                                  AI FIX                                        │
+├────────────────────────────────────────────────────────────────────────────────┤
+│ ${env.AI_FIX}                                                                  │
+└────────────────────────────────────────────────────────────────────────────────┘
+"""
                                     }
                                 } else {
                                     // AI analysis disabled - use pattern matching for fix
-                                    
-                                    // Standard pattern matching
                                     def errorMsg = e.getMessage().toLowerCase()
-                                    echo "\n📊 DETECTED ISSUES:"
+                                    def manualFix = ""
                                     if (errorMsg.contains('namespace') && errorMsg.contains('not found')) {
-                                        // Namespace error detected
-                                        // Fix stored in env.AI_FIX above
+                                        manualFix = "Namespace '${params.NAMESPACE}' not found. Fix: kubectl create namespace ${params.NAMESPACE}"
                                     } else if (errorMsg.contains('unauthorized') || errorMsg.contains('forbidden')) {
-                                        // Permission error detected
-                                        // Fix stored in env.AI_FIX above
+                                        manualFix = "Permission denied. Fix: Check RBAC policies and service account permissions"
                                     } else if (errorMsg.contains('connection refused') || errorMsg.contains('timeout')) {
-                                        // Network error detected
-                                        // Fix stored in env.AI_FIX above
+                                        manualFix = "Network connectivity issue. Fix: Check cluster endpoint and firewall settings"
                                     } else {
-                                        // General error detected
-                                        // Fix stored in env.AI_FIX above
+                                        manualFix = "General deployment error. Fix: Check deployment manifests and cluster resources"
                                     }
+                                    
+                                    echo """
+
+╔════════════════════════════════════════════════════════════════════════════════╗
+║                            BUILD FAILURE ANALYSIS                              ║
+╚════════════════════════════════════════════════════════════════════════════════╝
+
+🚨 REASON: ${e.getMessage()}
+
+📋 FAILED STAGE: ${env.BUILD_STAGE}
+
+┌────────────────────────────────────────────────────────────────────────────────┐
+│                                 MANUAL FIX                                     │
+├────────────────────────────────────────────────────────────────────────────────┤
+│ ${manualFix}                                                                   │
+└────────────────────────────────────────────────────────────────────────────────┘
+"""
                                 }
                                 
                                 // Troubleshooting details suppressed - show in final summary
                                 
                                 // Additional debugging suppressed for cleaner output
                                 
-                                // Don't throw - let pipeline continue to summary stage
-                                currentBuild.result = 'FAILURE'
+                                throw e
                             }
                         }
                         if (params.ACTION == 'delete') {
@@ -634,73 +717,9 @@ spec:
                             """
                         }
                     }
-                } catch (Exception e) {
-                    // Handle any deployment failure
-                    env.BUILD_STAGE = 'Deploy Application'
-                    env.BUILD_ERROR = e.getMessage()
-                    env.BUILD_FAILED = 'true'
-                    
-                    // Get AI solution silently
-                    try {
-                        def additionalContext = sh(
-                            script: """
-                            echo "=== CLUSTER INFO ==="
-                            kubectl cluster-info 2>/dev/null || echo "Cluster info unavailable"
-                            echo "=== NAMESPACES ==="
-                            kubectl get namespaces 2>/dev/null || echo "Namespaces unavailable"  
-                            echo "=== EVENTS ==="
-                            kubectl get events -n ${params.NAMESPACE} --sort-by='.lastTimestamp' 2>/dev/null | tail -5 || echo "No events found"
-                            """,
-                            returnStdout: true
-                        ).trim()
-                        
-                        if (params.ENABLE_AI_ANALYSIS) {
-                            env.AI_FIX = getAISolution(e.getMessage(), additionalContext)
-                        } else {
-                            // Simple pattern matching for fix
-                            def errorMsg = e.getMessage().toLowerCase()
-                            if (errorMsg.contains('namespace') && errorMsg.contains('not found')) {
-                                env.AI_FIX = "Namespace '${params.NAMESPACE}' not found. Fix: kubectl create namespace ${params.NAMESPACE}"
-                            } else if (errorMsg.contains('unauthorized') || errorMsg.contains('forbidden')) {
-                                env.AI_FIX = "Permission denied. Fix: Check RBAC policies and service account permissions"
-                            } else {
-                                env.AI_FIX = "Deployment failed. Fix: Check logs above for specific error details"
-                            }
-                        }
-                    } catch (Exception aiError) {
-                        env.AI_FIX = "Analysis failed. Check deployment manifests and cluster connectivity"
-                    }
-                    
-                    // Mark build as failed but continue to summary
-                    currentBuild.result = 'FAILURE'
-                }
         }
     }
 } // end of node block
-    // Final build failure summary - runs at end regardless of success/failure
-    if (env.BUILD_FAILED == 'true') {
-        stage('🚨 Build Failure Summary') {
-            container('tools') {
-                script {
-                    echo """
-╔════════════════════════════════════════════════════════════════════════════════╗
-║                            BUILD FAILURE ANALYSIS                              ║
-╚════════════════════════════════════════════════════════════════════════════════╝
-
-🚨 REASON: ${env.BUILD_ERROR ?: 'Unknown error'}
-
-📋 FAILED STAGE: ${env.BUILD_STAGE ?: 'Unknown stage'}  
-
-┌────────────────────────────────────────────────────────────────────────────────┐
-│                                  AI FIX                                        │
-├────────────────────────────────────────────────────────────────────────────────┤
-│ ${env.AI_FIX ?: 'Fix unavailable - enable AI analysis for smart solutions'}   │
-└────────────────────────────────────────────────────────────────────────────────┘
-"""
-                }
-            }
-        }
-    }
 } // end of node block
 } // end of podTemplate block
 
