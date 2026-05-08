@@ -479,7 +479,7 @@ spec:
                                         // Fallback to pattern matching
                                         def errorMsg = errorReason.toLowerCase()
                                         // Generate simple fix based on error pattern
-                                        if (errorMsg.contains('namespace') && errorMsg.contains('not found')) {
+                                        if (errorMsg.contains('namespace') && (errorMsg.contains('not found') || errorMsg.contains('does not exist') || errorMsg.contains("doesn't exist"))) {
                                             env.AI_FIX = "Namespace '${params.NAMESPACE}' not found. Fix: kubectl create namespace ${params.NAMESPACE}"
                                         } else if (errorMsg.contains('unauthorized') || errorMsg.contains('forbidden')) {
                                             env.AI_FIX = "Permission denied. Fix: Check RBAC policies and service account permissions"
@@ -690,7 +690,7 @@ spec:
                                         // Fallback to pattern matching
                                         def errorMsg = errorReason.toLowerCase()
                                         // Generate simple fix based on error pattern
-                                        if (errorMsg.contains('namespace') && errorMsg.contains('not found')) {
+                                        if (errorMsg.contains('namespace') && (errorMsg.contains('not found') || errorMsg.contains('does not exist') || errorMsg.contains("doesn't exist"))) {
                                             env.AI_FIX = "Namespace '${params.NAMESPACE}' not found. Fix: kubectl create namespace ${params.NAMESPACE}"
                                         } else if (errorMsg.contains('unauthorized') || errorMsg.contains('forbidden')) {
                                             env.AI_FIX = "Permission denied. Fix: Check RBAC policies and service account permissions"
