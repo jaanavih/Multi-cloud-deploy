@@ -55,14 +55,14 @@ spec:
       tty: true
 '''
 ) {
-    node {
+    node(POD_LABEL) {
         stage('Checkout') {
             checkout scm
         }
 
-    stage('💰 Cost comparison (+ optional AI)') {
-        container('tools') {
-            script {
+        stage('💰 Cost comparison (+ optional AI)') {
+            container('tools') {
+                script {
                 if (params.SHOW_COST_COMPARISON != true) {
                     echo 'Skipping cost comparison (SHOW_COST_COMPARISON is false)'
                 } else {
@@ -665,12 +665,10 @@ ${aiSolution}"""
                             kubectl delete -n ${params.NAMESPACE} -f k8s/service.yaml || true
                             """
                         }
-                    }
-                }
             }
         }
     }
-    } // end of node block
+} // end of node block
 } // end of podTemplate block
 
 // Functions are defined outside the podTemplate block
