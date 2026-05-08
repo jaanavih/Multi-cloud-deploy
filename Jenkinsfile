@@ -740,3 +740,5 @@ Keep response under 200 words and focus on actionable solutions.
         throw new Exception("Gemini API returned empty or invalid response")
     }
 }
+
+// Force Jenkins cache refresh - Updated at ${new Date().toString()}
