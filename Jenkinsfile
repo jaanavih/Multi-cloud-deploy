@@ -67,12 +67,12 @@ DEPLOYMENT INFO:
 - Action: ${params.ACTION}
 - Stage: Deploy Application
 
-Please provide:
-1. Root Cause (1-2 sentences)
-2. Immediate Fix (2-3 specific commands)
-3. Prevention (1 tip to avoid this in future)
+Please provide a concise solution in this format:
+ROOT CAUSE: [What went wrong in 1-2 sentences]
+FIX: [Exact command(s) to run, e.g. kubectl create namespace xyz]
+PREVENTION: [One tip to avoid this issue]
 
-Keep response under 200 words and focus on actionable solutions.
+Keep total response under 150 words. Focus on specific, actionable kubectl/bash commands.
 """
 
     def response = sh(
@@ -368,6 +368,8 @@ spec:
                                     echo "📋 TO FIX: Create the namespace first or use an existing one:"
                                     echo "   kubectl create namespace ${params.NAMESPACE}"
                                     echo "   OR use an existing namespace like 'default' or 'test-app'"
+                                    # Write specific error for catch block to read
+                                    echo "NAMESPACE_NOT_FOUND:${params.NAMESPACE}" > /tmp/deployment_error
                                     exit 1
                                 fi
                                 echo "✅ Namespace '${params.NAMESPACE}' exists, proceeding with deployment"
@@ -410,8 +412,28 @@ spec:
                                 env.BUILD_STAGE = 'Deploy Application'
                                 
                                 // Store failure info for final summary (verbose analysis suppressed)
-                                env.BUILD_ERROR = e.getMessage()
                                 env.BUILD_FAILED = 'true'
+                                
+                                // Check for specific error types
+                                def specificError = ""
+                                def errorReason = e.getMessage()
+                                try {
+                                    specificError = sh(script: "cat /tmp/deployment_error 2>/dev/null || echo 'GENERIC_ERROR'", returnStdout: true).trim()
+                                    if (specificError.startsWith("NAMESPACE_NOT_FOUND:")) {
+                                        def missingNamespace = specificError.split(":")[1]
+                                        errorReason = "Namespace '${missingNamespace}' does not exist"
+                                    }
+                                } catch (Exception ex) {
+                                    // File doesn't exist, use generic error
+                                }
+                                env.BUILD_ERROR = errorReason
+                                
+                                // Clean up error file
+                                try {
+                                    sh "rm -f /tmp/deployment_error"
+                                } catch (Exception ex) {
+                                    // Ignore cleanup errors
+                                }
 
                                 // Get additional context for AI analysis
                                 def additionalContext = ""
@@ -435,14 +457,14 @@ spec:
                                 if (params.ENABLE_AI_ANALYSIS) {
                                     // echo "\n🤖 GETTING AI-POWERED SOLUTION FROM GEMINI..." // Suppressed - show in final summary
                                     try {
-                                        def aiSolution = getAISolution(e.getMessage(), additionalContext)
+                                        def aiSolution = getAISolution(errorReason, additionalContext)
                                         echo """
 
 ╔════════════════════════════════════════════════════════════════════════════════╗
 ║                            BUILD FAILURE ANALYSIS                              ║
 ╚════════════════════════════════════════════════════════════════════════════════╝
 
-🚨 REASON: ${e.getMessage()}
+🚨 REASON: ${errorReason}
 
 📋 FAILED STAGE: ${env.BUILD_STAGE}
 
@@ -476,7 +498,7 @@ spec:
 ║                            BUILD FAILURE ANALYSIS                              ║
 ╚════════════════════════════════════════════════════════════════════════════════╝
 
-🚨 REASON: ${e.getMessage()}
+🚨 REASON: ${errorReason}
 
 📋 FAILED STAGE: ${env.BUILD_STAGE}
 
@@ -489,16 +511,16 @@ spec:
                                     }
                                 } else {
                                     // AI analysis disabled - use pattern matching for fix
-                                    def errorMsg = e.getMessage().toLowerCase()
+                                    def errorMsg = errorReason.toLowerCase()
                                     def manualFix = ""
-                                    if (errorMsg.contains('namespace') && errorMsg.contains('not found')) {
-                                        manualFix = "Namespace '${params.NAMESPACE}' not found. Fix: kubectl create namespace ${params.NAMESPACE}"
+                                    if (errorMsg.contains('namespace') && (errorMsg.contains('not found') || errorMsg.contains('does not exist'))) {
+                                        manualFix = "ROOT CAUSE: Target namespace '${params.NAMESPACE}' doesn't exist in the cluster\\nFIX: kubectl create namespace ${params.NAMESPACE}\\nPREVENTION: Always verify namespace exists before deployment"
                                     } else if (errorMsg.contains('unauthorized') || errorMsg.contains('forbidden')) {
-                                        manualFix = "Permission denied. Fix: Check RBAC policies and service account permissions"
+                                        manualFix = "ROOT CAUSE: Insufficient permissions to deploy resources\\nFIX: kubectl auth can-i create deployments -n ${params.NAMESPACE}\\nPREVENTION: Ensure service account has proper RBAC permissions"
                                     } else if (errorMsg.contains('connection refused') || errorMsg.contains('timeout')) {
-                                        manualFix = "Network connectivity issue. Fix: Check cluster endpoint and firewall settings"
+                                        manualFix = "ROOT CAUSE: Cannot connect to Kubernetes API server\\nFIX: kubectl cluster-info (check connectivity)\\nPREVENTION: Verify cluster endpoint and network access"
                                     } else {
-                                        manualFix = "General deployment error. Fix: Check deployment manifests and cluster resources"
+                                        manualFix = "ROOT CAUSE: Deployment script failed with exit code 1\\nFIX: Check deployment manifests and cluster resources\\nPREVENTION: Validate manifests before applying"
                                     }
                                     
                                     echo """
@@ -507,7 +529,7 @@ spec:
 ║                            BUILD FAILURE ANALYSIS                              ║
 ╚════════════════════════════════════════════════════════════════════════════════╝
 
-🚨 REASON: ${e.getMessage()}
+🚨 REASON: ${errorReason}
 
 📋 FAILED STAGE: ${env.BUILD_STAGE}
 
@@ -552,6 +574,8 @@ spec:
                                     echo "📋 TO FIX: Create the namespace first or use an existing one:"
                                     echo "   kubectl create namespace ${params.NAMESPACE}"
                                     echo "   OR use an existing namespace like 'default' or 'test-app'"
+                                    # Write specific error for catch block to read
+                                    echo "NAMESPACE_NOT_FOUND:${params.NAMESPACE}" > /tmp/deployment_error
                                     exit 1
                                 fi
                                 echo "✅ Namespace '${params.NAMESPACE}' exists, proceeding with deployment"
@@ -594,8 +618,28 @@ spec:
                                 env.BUILD_STAGE = 'Deploy Application'
                                 
                                 // Store failure info for final summary (verbose analysis suppressed)
-                                env.BUILD_ERROR = e.getMessage()
                                 env.BUILD_FAILED = 'true'
+                                
+                                // Check for specific error types
+                                def specificError = ""
+                                def errorReason = e.getMessage()
+                                try {
+                                    specificError = sh(script: "cat /tmp/deployment_error 2>/dev/null || echo 'GENERIC_ERROR'", returnStdout: true).trim()
+                                    if (specificError.startsWith("NAMESPACE_NOT_FOUND:")) {
+                                        def missingNamespace = specificError.split(":")[1]
+                                        errorReason = "Namespace '${missingNamespace}' does not exist"
+                                    }
+                                } catch (Exception ex) {
+                                    // File doesn't exist, use generic error
+                                }
+                                env.BUILD_ERROR = errorReason
+                                
+                                // Clean up error file
+                                try {
+                                    sh "rm -f /tmp/deployment_error"
+                                } catch (Exception ex) {
+                                    // Ignore cleanup errors
+                                }
 
                                 // Get additional context for AI analysis
                                 def additionalContext = ""
@@ -619,14 +663,14 @@ spec:
                                 if (params.ENABLE_AI_ANALYSIS) {
                                     // echo "\n🤖 GETTING AI-POWERED SOLUTION FROM GEMINI..." // Suppressed - show in final summary
                                     try {
-                                        def aiSolution = getAISolution(e.getMessage(), additionalContext)
+                                        def aiSolution = getAISolution(errorReason, additionalContext)
                                         echo """
 
 ╔════════════════════════════════════════════════════════════════════════════════╗
 ║                            BUILD FAILURE ANALYSIS                              ║
 ╚════════════════════════════════════════════════════════════════════════════════╝
 
-🚨 REASON: ${e.getMessage()}
+🚨 REASON: ${errorReason}
 
 📋 FAILED STAGE: ${env.BUILD_STAGE}
 
@@ -660,7 +704,7 @@ spec:
 ║                            BUILD FAILURE ANALYSIS                              ║
 ╚════════════════════════════════════════════════════════════════════════════════╝
 
-🚨 REASON: ${e.getMessage()}
+🚨 REASON: ${errorReason}
 
 📋 FAILED STAGE: ${env.BUILD_STAGE}
 
@@ -673,16 +717,16 @@ spec:
                                     }
                                 } else {
                                     // AI analysis disabled - use pattern matching for fix
-                                    def errorMsg = e.getMessage().toLowerCase()
+                                    def errorMsg = errorReason.toLowerCase()
                                     def manualFix = ""
-                                    if (errorMsg.contains('namespace') && errorMsg.contains('not found')) {
-                                        manualFix = "Namespace '${params.NAMESPACE}' not found. Fix: kubectl create namespace ${params.NAMESPACE}"
+                                    if (errorMsg.contains('namespace') && (errorMsg.contains('not found') || errorMsg.contains('does not exist'))) {
+                                        manualFix = "ROOT CAUSE: Target namespace '${params.NAMESPACE}' doesn't exist in the cluster\\nFIX: kubectl create namespace ${params.NAMESPACE}\\nPREVENTION: Always verify namespace exists before deployment"
                                     } else if (errorMsg.contains('unauthorized') || errorMsg.contains('forbidden')) {
-                                        manualFix = "Permission denied. Fix: Check RBAC policies and service account permissions"
+                                        manualFix = "ROOT CAUSE: Insufficient permissions to deploy resources\\nFIX: kubectl auth can-i create deployments -n ${params.NAMESPACE}\\nPREVENTION: Ensure service account has proper RBAC permissions"
                                     } else if (errorMsg.contains('connection refused') || errorMsg.contains('timeout')) {
-                                        manualFix = "Network connectivity issue. Fix: Check cluster endpoint and firewall settings"
+                                        manualFix = "ROOT CAUSE: Cannot connect to Kubernetes API server\\nFIX: kubectl cluster-info (check connectivity)\\nPREVENTION: Verify cluster endpoint and network access"
                                     } else {
-                                        manualFix = "General deployment error. Fix: Check deployment manifests and cluster resources"
+                                        manualFix = "ROOT CAUSE: Deployment script failed with exit code 1\\nFIX: Check deployment manifests and cluster resources\\nPREVENTION: Validate manifests before applying"
                                     }
                                     
                                     echo """
@@ -691,7 +735,7 @@ spec:
 ║                            BUILD FAILURE ANALYSIS                              ║
 ╚════════════════════════════════════════════════════════════════════════════════╝
 
-🚨 REASON: ${e.getMessage()}
+🚨 REASON: ${errorReason}
 
 📋 FAILED STAGE: ${env.BUILD_STAGE}
 
