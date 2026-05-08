@@ -56,8 +56,6 @@ spec:
 '''
 ) {
 
-node(POD_LABEL) {
-
     stage('Checkout') {
         checkout scm
     }
@@ -672,7 +670,9 @@ ${aiSolution}"""
             }
         }
     }
-}
+} // end of podTemplate block
+
+// Functions are defined outside the podTemplate block
 
 // Function to safely call Gemini API with credentials
 def getAISolution(String errorMessage, String context) {
