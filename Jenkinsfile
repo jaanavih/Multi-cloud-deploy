@@ -36,6 +36,71 @@ properties([
     ])
 ])
 
+// AI Analysis Functions - Must be defined before podTemplate block
+def getAISolution(String errorMessage, String context) {
+    if (!params.ENABLE_AI_ANALYSIS) {
+        return "AI analysis disabled"
+    }
+    
+    try {
+        withCredentials([string(credentialsId: 'gemini-api-key', variable: 'GEMINI_API_KEY')]) {
+            return getGeminiSolution(errorMessage, context, env.GEMINI_API_KEY)
+        }
+    } catch (Exception e) {
+        throw new Exception("Credentials 'gemini-api-key' not found. Please add your Gemini API key to Jenkins credentials with ID 'gemini-api-key'")
+    }
+}
+
+def getGeminiSolution(String errorMessage, String context, String apiKey) {
+    def prompt = """
+You are a Kubernetes deployment expert. Analyze this Jenkins pipeline failure and provide a concise solution.
+
+ERROR MESSAGE:
+${errorMessage}
+
+ADDITIONAL CONTEXT:
+${context}
+
+DEPLOYMENT INFO:
+- Cloud: ${env.TARGET_CLOUD ?: 'Unknown'}
+- Namespace: ${params.NAMESPACE}
+- Action: ${params.ACTION}
+- Stage: Deploy Application
+
+Please provide:
+1. Root Cause (1-2 sentences)
+2. Immediate Fix (2-3 specific commands)
+3. Prevention (1 tip to avoid this in future)
+
+Keep response under 200 words and focus on actionable solutions.
+"""
+
+    def response = sh(
+        script: """
+        curl -s -X POST "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}" \\
+        -H "Content-Type: application/json" \\
+        -d '{
+            "contents": [{
+                "parts": [{
+                    "text": "${prompt.replace('"', '\\"').replace('\n', '\\n')}"
+                }]
+            }],
+            "generationConfig": {
+                "maxOutputTokens": 300,
+                "temperature": 0.1
+            }
+        }' | jq -r '.candidates[0].content.parts[0].text // "AI analysis unavailable"'
+        """,
+        returnStdout: true
+    ).trim()
+
+    if (response && response != "AI analysis unavailable" && response != "null") {
+        return response
+    } else {
+        throw new Exception("Gemini API returned empty or invalid response")
+    }
+}
+
 podTemplate(
     yaml: '''
 apiVersion: v1
@@ -673,76 +738,6 @@ ${aiSolution}"""
 } // end of node block
 } // end of podTemplate block
 
-// Functions are defined outside the podTemplate block
-
-// Function to safely call Gemini API with credentials
-def getAISolution(String errorMessage, String context) {
-    if (!params.ENABLE_AI_ANALYSIS) {
-        return "AI analysis disabled"
-    }
-    
-    try {
-        withCredentials([string(credentialsId: 'gemini-api-key', variable: 'GEMINI_API_KEY')]) {
-            return getGeminiSolution(errorMessage, context, env.GEMINI_API_KEY)
-        }
-    } catch (Exception e) {
-        throw new Exception("Credentials 'gemini-api-key' not found. Please add your Gemini API key to Jenkins credentials with ID 'gemini-api-key'")
-    }
-}
-
-// Function to get AI-powered solution from Gemini
-def getGeminiSolution(String errorMessage, String context, String apiKey) {
-    def prompt = """
-You are a Kubernetes deployment expert. Analyze this Jenkins pipeline failure and provide a concise solution.
-
-ERROR MESSAGE:
-${errorMessage}
-
-ADDITIONAL CONTEXT:
-${context}
-
-DEPLOYMENT INFO:
-- Cloud: ${env.TARGET_CLOUD ?: 'Unknown'}
-- Namespace: ${params.NAMESPACE}
-- Action: ${params.ACTION}
-- Stage: Deploy Application
-
-Please provide:
-1. Root Cause (1-2 sentences)
-2. Immediate Fix (2-3 specific commands)
-3. Prevention (1 tip to avoid this in future)
-
-Keep response under 200 words and focus on actionable solutions.
-"""
-
-    def response = sh(
-        script: """
-        curl -s -X POST "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}" \\
-        -H "Content-Type: application/json" \\
-        -d '{
-            "contents": [{
-                "parts": [{
-                    "text": "${prompt.replace('"', '\\"').replace('\n', '\\n')}"
-                }]
-            }],
-            "generationConfig": {
-                "maxOutputTokens": 300,
-                "temperature": 0.1
-            }
-        }' | jq -r '.candidates[0].content.parts[0].text // "AI analysis unavailable"'
-        """,
-        returnStdout: true
-    ).trim()
-
-    if (response && response != "AI analysis unavailable" && response != "null") {
-        return response
-    } else {
-        throw new Exception("Gemini API returned empty or invalid response")
-    }
-}
-
 }
 }
-
-// Force Jenkins cache refresh - Updated at timestamp
 
