@@ -35,7 +35,7 @@ properties([
 def getAISolution(String errorMessage, String context) {
     try {
         withCredentials([string(credentialsId: 'gemini-api-key', variable: 'GEMINI_API_KEY')]) {
-            return getGeminiSolution(errorMessage, context, env.GEMINI_API_KEY)
+            return getGeminiSolution(errorMessage, context, GEMINI_API_KEY)
         }
     } catch (Exception e) {
         throw new Exception("AI Analysis requires 'gemini-api-key' credential. Add it in Jenkins: Manage Jenkins > Credentials > Add Secret Text with ID 'gemini-api-key'")
