@@ -43,28 +43,18 @@ def getAISolution(String errorMessage, String context) {
 }
 
 def getGeminiSolution(String errorMessage, String context, String apiKey) {
-    def prompt = """
-You are a Kubernetes deployment expert. Analyze this Jenkins pipeline failure and provide a concise solution.
+    def prompt = """Kubernetes deployment failed. Analyze and provide solution.
 
-ERROR MESSAGE:
-${errorMessage}
+ERROR: ${errorMessage}
+NAMESPACE: ${params.NAMESPACE}  
+CLOUD: ${env.TARGET_CLOUD ?: 'Unknown'}
 
-ADDITIONAL CONTEXT:
-${context}
+Format:
+ROOT CAUSE: [Brief explanation]
+FIX: [Exact kubectl command]
+PREVENTION: [Quick tip]
 
-DEPLOYMENT INFO:
-- Cloud: ${env.TARGET_CLOUD ?: 'Unknown'}
-- Namespace: ${params.NAMESPACE}
-- Action: ${params.ACTION}
-- Stage: Deploy Application
-
-Please provide a concise solution in this format:
-ROOT CAUSE: [What went wrong in 1-2 sentences]
-FIX: [Exact command(s) to run, e.g. kubectl create namespace xyz]
-PREVENTION: [One tip to avoid this issue]
-
-Keep total response under 150 words. Focus on specific, actionable kubectl/bash commands.
-"""
+Keep under 100 words total."""
 
     def response = sh(
         script: """
@@ -85,8 +75,8 @@ Keep total response under 150 words. Focus on specific, actionable kubectl/bash 
         }]
     }],
     "generationConfig": {
-        "maxOutputTokens": 300,
-        "temperature": 0.1
+        "maxOutputTokens": 150,
+        "temperature": 0.3
     }
 }
 EOF
