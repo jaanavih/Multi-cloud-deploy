@@ -724,5 +724,4 @@ spec:
 } // end of podTemplate block
 
 }
-}
 
