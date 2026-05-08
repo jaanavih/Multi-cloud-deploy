@@ -68,6 +68,14 @@ Keep total response under 150 words. Focus on specific, actionable kubectl/bash 
 
     def response = sh(
         script: """
+        # First, try to get available models to find the correct one
+        MODELS=\$(curl -s "https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}" | jq -r '.models[].name' | grep -E 'gemini' | head -1)
+        echo "DEBUG: Available Gemini model: \$MODELS" >&2
+        
+        # Use the found model or fallback to gemini-1.5-pro
+        MODEL_NAME=\${MODELS:-"models/gemini-1.5-pro"}
+        echo "DEBUG: Using model: \$MODEL_NAME" >&2
+        
         # Create properly escaped JSON payload
         cat > /tmp/gemini_payload.json << 'EOF'
 {
@@ -83,7 +91,7 @@ Keep total response under 150 words. Focus on specific, actionable kubectl/bash 
 }
 EOF
         
-        RESPONSE=\$(curl -s -X POST "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}" \\
+        RESPONSE=\$(curl -s -X POST "https://generativelanguage.googleapis.com/v1beta/\$MODEL_NAME:generateContent?key=${apiKey}" \\
         -H "Content-Type: application/json" \\
         -d @/tmp/gemini_payload.json)
         
