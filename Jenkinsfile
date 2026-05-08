@@ -47,12 +47,8 @@ def getGeminiSolution(String errorMessage, String context, String apiKey) {
 
     def response = sh(
         script: """
-        # First, try to get available models to find the correct one
-        MODELS=\$(curl -s "https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}" | jq -r '.models[].name' | grep -E 'gemini' | head -1)
-        echo "DEBUG: Available Gemini model: \$MODELS" >&2
-        
-        # Use the found model or fallback to gemini-1.5-pro
-        MODEL_NAME=\${MODELS:-"models/gemini-1.5-pro"}
+        # Use known working model (from previous successful run)
+        MODEL_NAME="models/gemini-2.5-flash"
         echo "DEBUG: Using model: \$MODEL_NAME" >&2
         
         # Create properly escaped JSON payload
@@ -76,7 +72,8 @@ EOF
         
         echo "DEBUG: Raw API Response: \$RESPONSE" >&2
         
-        AI_TEXT=\$(echo "\$RESPONSE" | jq -r '.candidates[0].content.parts[0].text // "AI analysis unavailable"')
+        # Extract AI text using grep and sed (no jq dependency)
+        AI_TEXT=\$(echo "\$RESPONSE" | grep -o '"text"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | sed 's/.*"text"[[:space:]]*:[[:space:]]*"\\([^"]*\\)".*/\\1/' || echo "AI analysis unavailable")
         echo "DEBUG: Extracted AI Text: \$AI_TEXT" >&2
         
         # Clean up temp file
