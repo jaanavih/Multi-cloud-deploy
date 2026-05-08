@@ -211,18 +211,18 @@ def printDetailedCostAnalysis(Map results, Map specs) {
 ║                              💰 COST BREAKDOWN                                ║
 ╚════════════════════════════════════════════════════════════════════════════════╝
 
-┌─────────────────────┬─────────────────┬─────────────────┬─────────────────────┐
-│     COMPONENT       │   AWS EKS 🟠    │   GCP GKE 🔵    │    DIFFERENCE       │
-├─────────────────────┼─────────────────┼─────────────────┼─────────────────────┤
-│ ${'Cluster Management'.padRight(19)} │ \$${String.format('%13.2f', results.aws.clusterManagement)} │ \$${String.format('%13.2f', results.gcp.clusterManagement)} │ \$${String.format('%+13.2f', results.gcp.clusterManagement - results.aws.clusterManagement)} │
-│ ${'Compute Instances'.padRight(19)} │ \$${String.format('%13.2f', results.aws.compute)} │ \$${String.format('%13.2f', results.gcp.compute)} │ \$${String.format('%+13.2f', results.gcp.compute - results.aws.compute)} │
-│ ${'Load Balancer'.padRight(19)} │ \$${String.format('%13.2f', results.aws.loadBalancer)} │ \$${String.format('%13.2f', results.gcp.loadBalancer)} │ \$${String.format('%+13.2f', results.gcp.loadBalancer - results.aws.loadBalancer)} │
-│ ${'Storage (Disks)'.padRight(19)} │ \$${String.format('%13.2f', results.aws.storage)} │ \$${String.format('%13.2f', results.gcp.storage)} │ \$${String.format('%+13.2f', results.gcp.storage - results.aws.storage)} │
-│ ${'Data Transfer'.padRight(19)} │ \$${String.format('%13.2f', results.aws.dataTransfer)} │ \$${String.format('%13.2f', results.gcp.dataTransfer)} │ \$${String.format('%+13.2f', results.gcp.dataTransfer - results.aws.dataTransfer)} │
-│ ${'Networking'.padRight(19)} │ \$${String.format('%13.2f', results.aws.networking)} │ \$${String.format('%13.2f', results.gcp.networking)} │ \$${String.format('%+13.2f', results.gcp.networking - results.aws.networking)} │
-├─────────────────────┼─────────────────┼─────────────────┼─────────────────────┤
-│ ${'🏆 TOTAL MONTHLY'.padRight(19)} │ \$${String.format('%13.2f', awsTotal)} │ \$${String.format('%13.2f', gcpTotal)} │ \$${String.format('%+13.2f', gcpTotal - awsTotal)} │
-└─────────────────────┴─────────────────┴─────────────────┴─────────────────────┘"""
+┌────────────────────────┬─────────────────┬─────────────────┬─────────────────┐
+│      COMPONENT         │   AWS EKS 🟠    │   GCP GKE 🔵    │   DIFFERENCE    │
+├────────────────────────┼─────────────────┼─────────────────┼─────────────────┤
+│ Cluster Management     │ \$${String.format('%11.2f', results.aws.clusterManagement)}   │ \$${String.format('%11.2f', results.gcp.clusterManagement)}   │ \$${String.format('%+9.2f', results.gcp.clusterManagement - results.aws.clusterManagement)}     │
+│ Compute Instances      │ \$${String.format('%11.2f', results.aws.compute)}   │ \$${String.format('%11.2f', results.gcp.compute)}   │ \$${String.format('%+9.2f', results.gcp.compute - results.aws.compute)}     │
+│ Load Balancer          │ \$${String.format('%11.2f', results.aws.loadBalancer)}   │ \$${String.format('%11.2f', results.gcp.loadBalancer)}   │ \$${String.format('%+9.2f', results.gcp.loadBalancer - results.aws.loadBalancer)}     │
+│ Storage (Disks)        │ \$${String.format('%11.2f', results.aws.storage)}   │ \$${String.format('%11.2f', results.gcp.storage)}   │ \$${String.format('%+9.2f', results.gcp.storage - results.aws.storage)}     │
+│ Data Transfer          │ \$${String.format('%11.2f', results.aws.dataTransfer)}   │ \$${String.format('%11.2f', results.gcp.dataTransfer)}   │ \$${String.format('%+9.2f', results.gcp.dataTransfer - results.aws.dataTransfer)}     │
+│ Networking             │ \$${String.format('%11.2f', results.aws.networking)}   │ \$${String.format('%11.2f', results.gcp.networking)}   │ \$${String.format('%+9.2f', results.gcp.networking - results.aws.networking)}     │
+├────────────────────────┼─────────────────┼─────────────────┼─────────────────┤
+│ 🏆 TOTAL MONTHLY       │ \$${String.format('%11.2f', awsTotal)}   │ \$${String.format('%11.2f', gcpTotal)}   │ \$${String.format('%+9.2f', gcpTotal - awsTotal)}     │
+└────────────────────────┴─────────────────┴─────────────────┴─────────────────┘"""
 
     // Generate cost visualization chart
     def maxCost = Math.max(awsTotal, gcpTotal)
@@ -254,53 +254,7 @@ GCP GKE  │${'█' * gcpBarLength}${' ' * (40 - gcpBarLength)}│ \$${String.fo
    • Biggest cost difference: ${getCostDifferenceAnalysis(results)}
    • ${cheaperProvider} saves most on: ${getBiggestSavingsCategory(results)}"""
 
-    // Generate scaling projections
-    def scaling2x = calculateScalingCosts(results, 2)
-    def scaling5x = calculateScalingCosts(results, 5)
-    
-    echo """
-╔════════════════════════════════════════════════════════════════════════════════╗
-║                           📈 SCALING PROJECTIONS                               ║
-╚════════════════════════════════════════════════════════════════════════════════╝
-
-Current (${specs.replicas} replicas):
-   AWS: \$${String.format('%.2f', awsTotal)}/month  │  GCP: \$${String.format('%.2f', gcpTotal)}/month
-
-2x Scale (${specs.replicas * 2} replicas):
-   AWS: \$${String.format('%.2f', scaling2x.aws)}/month  │  GCP: \$${String.format('%.2f', scaling2x.gcp)}/month
-   Savings with ${cheaperProvider}: \$${String.format('%.2f', Math.abs((scaling2x.aws - scaling2x.gcp) as double))}/month
-
-5x Scale (${specs.replicas * 5} replicas):
-   AWS: \$${String.format('%.2f', scaling5x.aws)}/month  │  GCP: \$${String.format('%.2f', scaling5x.gcp)}/month
-   Savings with ${cheaperProvider}: \$${String.format('%.2f', Math.abs((scaling5x.aws - scaling5x.gcp) as double))}/month
-
-🚀 At 5x scale, ${cheaperProvider} could save you \$${String.format('%.0f', Math.abs((scaling5x.aws - scaling5x.gcp) as double) * 12)}/year!"""
-
-    echo """
-╔════════════════════════════════════════════════════════════════════════════════╗
-║                            🔍 DETAILED INSIGHTS                                ║
-╚════════════════════════════════════════════════════════════════════════════════╝
-
-🏛️  INFRASTRUCTURE COMPARISON:
-   AWS EKS: EC2 t3.medium instances in ${results.aws.region}
-   GCP GKE: e2-standard-2 machines in ${results.gcp.region}
-
-💾 STORAGE COMPARISON:
-   AWS: EBS General Purpose SSD (gp3) - \$${String.format('%.4f', 0.10)}/GB/month
-   GCP: Persistent Disk Standard - \$${String.format('%.4f', 0.04)}/GB/month
-   → GCP storage is ${String.format('%.0f', ((0.10 - 0.04) / 0.10) * 100)}% cheaper
-
-🌐 NETWORKING COMPARISON:
-   AWS: Classic Load Balancer + data transfer costs
-   GCP: Google Cloud Load Balancer + data transfer costs
-   → ${results.aws.loadBalancer + results.aws.dataTransfer < results.gcp.loadBalancer + results.gcp.dataTransfer ? 'AWS' : 'GCP'} has lower networking costs
-
 ⏰ ANALYSIS TIMESTAMP: ${new Date().toString()}
-
-💡 PRICING SOURCES:
-   AWS: Singapore-specific pricing (ap-southeast-1 API endpoints)
-   GCP: Singapore-specific pricing (asia-southeast1 API endpoints)  
-   📡 Real-time Singapore rates where available, region-specific fallbacks otherwise
 
 ════════════════════════════════════════════════════════════════════════════════
 """
@@ -377,17 +331,6 @@ def getBiggestSavingsCategory(Map results) {
     }
 }
 
-def calculateScalingCosts(Map results, int multiplier) {
-    // Simplified scaling - compute and storage scale linearly, other costs remain mostly fixed
-    return [
-        aws: results.aws.clusterManagement + (results.aws.compute * multiplier) + 
-             results.aws.loadBalancer + (results.aws.storage * multiplier) + 
-             results.aws.dataTransfer + results.aws.networking,
-        gcp: results.gcp.clusterManagement + (results.gcp.compute * multiplier) + 
-             results.gcp.loadBalancer + (results.gcp.storage * multiplier) + 
-             results.gcp.dataTransfer + results.gcp.networking
-    ]
-}
 
 def generateCostReport(Map results) {
     def savings = results.aws.total - results.gcp.total
@@ -552,10 +495,6 @@ def generateCostReport(Map results) {
                 </div>
             </div>
             
-            <div class="chart-container">
-                <div class="chart-title">📈 Scaling Cost Projections</div>
-                <canvas id="scalingChart" width="800" height="400"></canvas>
-            </div>
         </div>
         
         <div class="recommendation">
@@ -663,25 +602,7 @@ def generateCostReport(Map results) {
                     </ul>
                 </div>
                 
-                <div class="insight-card">
-                    <h3>📈 Scaling Analysis</h3>
-                    <table class="scaling-table">
-                        <tr><th>Scale Factor</th><th>AWS Cost</th><th>GCP Cost</th><th>Savings</th></tr>
-                        <tr><td>Current (1x)</td><td>\$${awsTot}</td><td>\$${gcpTot}</td><td>\$${absSav}</td></tr>
-                        <tr><td>2x Scale</td><td>\$${String.format('%.2f', (results.aws.total + results.aws.compute + results.aws.storage) as double)}</td><td>\$${String.format('%.2f', (results.gcp.total + results.gcp.compute + results.gcp.storage) as double)}</td><td>\$${String.format('%.2f', Math.abs(((results.aws.total + results.aws.compute + results.aws.storage) - (results.gcp.total + results.gcp.compute + results.gcp.storage)) as double))}</td></tr>
-                        <tr><td>5x Scale</td><td>\$${String.format('%.2f', (results.aws.total + results.aws.compute * 4 + results.aws.storage * 4) as double)}</td><td>\$${String.format('%.2f', (results.gcp.total + results.gcp.compute * 4 + results.gcp.storage * 4) as double)}</td><td>\$${String.format('%.2f', Math.abs(((results.aws.total + results.aws.compute * 4 + results.aws.storage * 4) - (results.gcp.total + results.gcp.compute * 4 + results.gcp.storage * 4)) as double))}</td></tr>
-                    </table>
-                </div>
                 
-                <div class="insight-card">
-                    <h3>⚡ Performance Notes</h3>
-                    <ul class="insight-list">
-                        <li>AWS t3.medium: 2 vCPU, 4GB RAM</li>
-                        <li>GCP e2-standard-2: 2 vCPU, 8GB RAM</li>
-                        <li>Network latency varies by region</li>
-                        <li>Both support auto-scaling capabilities</li>
-                    </ul>
-                </div>
             </div>
         </div>
         
@@ -747,54 +668,6 @@ def generateCostReport(Map results) {
             }
         });
         
-        // Scaling Chart
-        const scalingCtx = document.getElementById('scalingChart').getContext('2d');
-        new Chart(scalingCtx, {
-            type: 'line',
-            data: {
-                labels: ['1x', '2x', '3x', '4x', '5x'],
-                datasets: [
-                    {
-                        label: 'AWS EKS',
-                        data: [
-                            ${results.aws.total},
-                            ${results.aws.total + results.aws.compute + results.aws.storage},
-                            ${results.aws.total + results.aws.compute * 2 + results.aws.storage * 2},
-                            ${results.aws.total + results.aws.compute * 3 + results.aws.storage * 3},
-                            ${results.aws.total + results.aws.compute * 4 + results.aws.storage * 4}
-                        ],
-                        borderColor: '#9575cd',
-                        backgroundColor: 'rgba(149, 117, 205, 0.1)',
-                        borderWidth: 3,
-                        tension: 0.1
-                    },
-                    {
-                        label: 'GCP GKE',
-                        data: [
-                            ${results.gcp.total},
-                            ${results.gcp.total + results.gcp.compute + results.gcp.storage},
-                            ${results.gcp.total + results.gcp.compute * 2 + results.gcp.storage * 2},
-                            ${results.gcp.total + results.gcp.compute * 3 + results.gcp.storage * 3},
-                            ${results.gcp.total + results.gcp.compute * 4 + results.gcp.storage * 4}
-                        ],
-                        borderColor: '#f48fb1',
-        backgroundColor: 'rgba(244, 143, 177, 0.1)',
-                        borderWidth: 3,
-                        tension: 0.1
-                    }
-                ]
-            },
-            options: {
-                responsive: true,
-                scales: {
-                    y: { beginAtZero: true, title: { display: true, text: 'Cost (USD)' } },
-                    x: { title: { display: true, text: 'Scale Factor' } }
-                },
-                plugins: {
-                    title: { display: true, text: 'Cost Scaling Projections' }
-                }
-            }
-        });
     </script>
 </body>
 </html>
