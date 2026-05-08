@@ -480,7 +480,7 @@ spec:
 """
                                     } catch (Exception aiError) {
                                         // AI failed, use fallback fix
-                                        echo "🔍 DEBUG: AI Analysis failed: ${aiError.getMessage()}"
+                                        // AI failed, use fallback fix (debug message removed)
                                         
                                         // Fallback to pattern matching
                                         def errorMsg = errorReason.toLowerCase()
@@ -694,7 +694,7 @@ spec:
 """
                                     } catch (Exception aiError) {
                                         // AI failed, use fallback fix
-                                        echo "🔍 DEBUG: AI Analysis failed: ${aiError.getMessage()}"
+                                        // AI failed, use fallback fix (debug message removed)
                                         
                                         // Fallback to pattern matching
                                         def errorMsg = errorReason.toLowerCase()
