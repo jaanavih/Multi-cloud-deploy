@@ -43,18 +43,7 @@ def getAISolution(String errorMessage, String context) {
 }
 
 def getGeminiSolution(String errorMessage, String context, String apiKey) {
-    def prompt = """Kubernetes deployment failed. Analyze and provide solution.
-
-ERROR: ${errorMessage}
-NAMESPACE: ${params.NAMESPACE}  
-CLOUD: ${env.TARGET_CLOUD ?: 'Unknown'}
-
-Format:
-ROOT CAUSE: [Brief explanation]
-FIX: [Exact kubectl command]
-PREVENTION: [Quick tip]
-
-Keep under 100 words total."""
+    def prompt = "Please give me the fix in one sentence along with command for the issue - ${errorMessage}"
 
     def response = sh(
         script: """
@@ -75,8 +64,8 @@ Keep under 100 words total."""
         }]
     }],
     "generationConfig": {
-        "maxOutputTokens": 150,
-        "temperature": 0.3
+        "maxOutputTokens": 1000,
+        "temperature": 0.1
     }
 }
 EOF
