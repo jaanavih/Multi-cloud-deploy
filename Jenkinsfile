@@ -21,10 +21,10 @@ properties([
             defaultValue: 'default',
             description: 'Kubernetes namespace'
         ),
-        string(
-            name: 'GEMINI_API_KEY',
-            defaultValue: '',
-            description: 'Gemini API Key for AI-powered failure analysis (optional)'
+        booleanParam(
+            name: 'ENABLE_AI_ANALYSIS',
+            defaultValue: true,
+            description: 'Enable AI-powered failure analysis using Gemini API'
         ),
         choice(
             name: 'ACTION',
@@ -209,11 +209,11 @@ node(POD_LABEL) {
                             awsContext = "AWS context unavailable: ${ex.getMessage()}"
                         }
                         
-                        // Try AI solution if API key provided
-                        if (params.GEMINI_API_KEY && params.GEMINI_API_KEY.trim() != '') {
+                        // Try AI solution if enabled
+                        if (params.ENABLE_AI_ANALYSIS) {
                             try {
                                 echo "\n🤖 Getting AWS troubleshooting advice from Gemini AI..."
-                                def aiSolution = getGeminiSolution(e.getMessage(), awsContext, params.GEMINI_API_KEY)
+                                def aiSolution = getAISolution(e.getMessage(), awsContext)
                                 echo "🧠 GEMINI AI SOLUTION:\n${aiSolution}"
                             } catch (Exception aiError) {
                                 echo "⚠️ AI analysis failed: ${aiError.getMessage()}"
@@ -262,11 +262,11 @@ node(POD_LABEL) {
                             gcpContext = "GCP context unavailable: ${ex.getMessage()}"
                         }
                         
-                        // Try AI solution if API key provided
-                        if (params.GEMINI_API_KEY && params.GEMINI_API_KEY.trim() != '') {
+                        // Try AI solution if enabled
+                        if (params.ENABLE_AI_ANALYSIS) {
                             try {
                                 echo "\n🤖 Getting GCP troubleshooting advice from Gemini AI..."
-                                def aiSolution = getGeminiSolution(e.getMessage(), gcpContext, params.GEMINI_API_KEY)
+                                def aiSolution = getAISolution(e.getMessage(), gcpContext)
                                 echo "🧠 GEMINI AI SOLUTION:\n${aiSolution}"
                             } catch (Exception aiError) {
                                 echo "⚠️ AI analysis failed: ${aiError.getMessage()}"
@@ -375,10 +375,10 @@ node(POD_LABEL) {
                                 }
 
                                 // Try to get AI-powered solution from Gemini
-                                if (params.GEMINI_API_KEY && params.GEMINI_API_KEY.trim() != '') {
+                                if (params.ENABLE_AI_ANALYSIS) {
                                     echo "\n🤖 GETTING AI-POWERED SOLUTION FROM GEMINI..."
                                     try {
-                                        def aiSolution = getGeminiSolution(e.getMessage(), additionalContext, params.GEMINI_API_KEY)
+                                        def aiSolution = getAISolution(e.getMessage(), additionalContext)
                                         echo """
 🧠 GEMINI AI ANALYSIS:
 ${aiSolution}"""
@@ -405,7 +405,7 @@ ${aiSolution}"""
                                 } else {
                                     echo """
 
-ℹ️  For AI-powered failure analysis, provide your Gemini API key in the GEMINI_API_KEY parameter.
+ℹ️  AI analysis disabled. Enable 'ENABLE_AI_ANALYSIS' and add 'gemini-api-key' to Jenkins credentials for smart failure analysis.
 🔄 Using standard pattern matching analysis..."""
                                     
                                     // Standard pattern matching
@@ -567,10 +567,10 @@ ${aiSolution}"""
                                 }
 
                                 // Try to get AI-powered solution from Gemini
-                                if (params.GEMINI_API_KEY && params.GEMINI_API_KEY.trim() != '') {
+                                if (params.ENABLE_AI_ANALYSIS) {
                                     echo "\n🤖 GETTING AI-POWERED SOLUTION FROM GEMINI..."
                                     try {
-                                        def aiSolution = getGeminiSolution(e.getMessage(), additionalContext, params.GEMINI_API_KEY)
+                                        def aiSolution = getAISolution(e.getMessage(), additionalContext)
                                         echo """
 🧠 GEMINI AI ANALYSIS:
 ${aiSolution}"""
@@ -597,7 +597,7 @@ ${aiSolution}"""
                                 } else {
                                     echo """
 
-ℹ️  For AI-powered failure analysis, provide your Gemini API key in the GEMINI_API_KEY parameter.
+ℹ️  AI analysis disabled. Enable 'ENABLE_AI_ANALYSIS' and add 'gemini-api-key' to Jenkins credentials for smart failure analysis.
 🔄 Using standard pattern matching analysis..."""
                                     
                                     // Standard pattern matching
@@ -671,6 +671,21 @@ ${aiSolution}"""
                 }
             }
         }
+    }
+}
+
+// Function to safely call Gemini API with credentials
+def getAISolution(String errorMessage, String context) {
+    if (!params.ENABLE_AI_ANALYSIS) {
+        return "AI analysis disabled"
+    }
+    
+    try {
+        withCredentials([string(credentialsId: 'gemini-api-key', variable: 'GEMINI_API_KEY')]) {
+            return getGeminiSolution(errorMessage, context, env.GEMINI_API_KEY)
+        }
+    } catch (Exception e) {
+        throw new Exception("Credentials 'gemini-api-key' not found. Please add your Gemini API key to Jenkins credentials with ID 'gemini-api-key'")
     }
 }
 
