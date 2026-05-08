@@ -522,7 +522,7 @@ spec:
                                     echo "🔍 DEBUG: Fallback pattern matching for: '${errorReason}'"
                                     echo "🔍 DEBUG: Lowercase version: '${errorMsg}'"
                                     def manualFix = ""
-                                    if (errorMsg.contains('namespace') && (errorMsg.contains('not found') || errorMsg.contains('does not exist') || errorMsg.contains('doesn\\'t exist'))) {
+                                    if (errorMsg.contains('namespace') && (errorMsg.contains('not found') || errorMsg.contains('does not exist') || errorMsg.contains("doesn't exist"))) {
                                         manualFix = "ROOT CAUSE: Target namespace '${params.NAMESPACE}' doesn't exist in the cluster\\nFIX: kubectl create namespace ${params.NAMESPACE}\\nPREVENTION: Always verify namespace exists before deployment"
                                     } else if (errorMsg.contains('unauthorized') || errorMsg.contains('forbidden')) {
                                         manualFix = "ROOT CAUSE: Insufficient permissions to deploy resources\\nFIX: kubectl auth can-i create deployments -n ${params.NAMESPACE}\\nPREVENTION: Ensure service account has proper RBAC permissions"
@@ -731,7 +731,7 @@ spec:
                                     echo "🔍 DEBUG: Fallback pattern matching for: '${errorReason}'"
                                     echo "🔍 DEBUG: Lowercase version: '${errorMsg}'"
                                     def manualFix = ""
-                                    if (errorMsg.contains('namespace') && (errorMsg.contains('not found') || errorMsg.contains('does not exist') || errorMsg.contains('doesn\\'t exist'))) {
+                                    if (errorMsg.contains('namespace') && (errorMsg.contains('not found') || errorMsg.contains('does not exist') || errorMsg.contains("doesn't exist"))) {
                                         manualFix = "ROOT CAUSE: Target namespace '${params.NAMESPACE}' doesn't exist in the cluster\\nFIX: kubectl create namespace ${params.NAMESPACE}\\nPREVENTION: Always verify namespace exists before deployment"
                                     } else if (errorMsg.contains('unauthorized') || errorMsg.contains('forbidden')) {
                                         manualFix = "ROOT CAUSE: Insufficient permissions to deploy resources\\nFIX: kubectl auth can-i create deployments -n ${params.NAMESPACE}\\nPREVENTION: Ensure service account has proper RBAC permissions"
