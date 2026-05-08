@@ -23,11 +23,6 @@ properties([
             defaultValue: 'default',
             description: 'Kubernetes namespace'
         ),
-        booleanParam(
-            name: 'ENABLE_AI_ANALYSIS',
-            defaultValue: true,
-            description: 'Enable AI-powered failure analysis using Gemini API'
-        ),
         choice(
             name: 'ACTION',
             choices: ['deploy', 'delete'],
@@ -38,10 +33,6 @@ properties([
 
 // AI Analysis Functions - Must be defined before podTemplate block
 def getAISolution(String errorMessage, String context) {
-    if (!params.ENABLE_AI_ANALYSIS) {
-        return "AI analysis disabled"
-    }
-    
     try {
         withCredentials([string(credentialsId: 'gemini-api-key', variable: 'GEMINI_API_KEY')]) {
             return getGeminiSolution(errorMessage, context, env.GEMINI_API_KEY)
@@ -77,7 +68,7 @@ Keep total response under 150 words. Focus on specific, actionable kubectl/bash 
 
     def response = sh(
         script: """
-        curl -s -X POST "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}" \\
+        RESPONSE=\$(curl -s -X POST "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}" \\
         -H "Content-Type: application/json" \\
         -d '{
             "contents": [{
@@ -89,15 +80,21 @@ Keep total response under 150 words. Focus on specific, actionable kubectl/bash 
                 "maxOutputTokens": 300,
                 "temperature": 0.1
             }
-        }' | jq -r '.candidates[0].content.parts[0].text // "AI analysis unavailable"'
+        }')
+        
+        echo "DEBUG: Raw API Response: \$RESPONSE" >&2
+        
+        AI_TEXT=\$(echo "\$RESPONSE" | jq -r '.candidates[0].content.parts[0].text // "AI analysis unavailable"')
+        echo "DEBUG: Extracted AI Text: \$AI_TEXT" >&2
+        echo "\$AI_TEXT"
         """,
         returnStdout: true
     ).trim()
 
-    if (response && response != "AI analysis unavailable" && response != "null") {
+    if (response && response != "AI analysis unavailable" && response != "null" && response != "") {
         return response
     } else {
-        throw new Exception("Gemini API returned empty or invalid response")
+        throw new Exception("Gemini API returned empty or invalid response: ${response}")
     }
 }
 
@@ -453,8 +450,8 @@ spec:
                                     additionalContext = "Context unavailable: ${ex.getMessage()}"
                                 }
 
-                                // Try to get AI-powered solution from Gemini
-                                if (params.ENABLE_AI_ANALYSIS) {
+                                // Get AI-powered solution from Gemini (always enabled)
+                                try {
                                     // echo "\n🤖 GETTING AI-POWERED SOLUTION FROM GEMINI..." // Suppressed - show in final summary
                                     try {
                                         def aiSolution = getAISolution(errorReason, additionalContext)
@@ -476,9 +473,10 @@ spec:
 """
                                     } catch (Exception aiError) {
                                         // AI failed, use fallback fix
+                                        echo "🔍 DEBUG: AI Analysis failed: ${aiError.getMessage()}"
                                         
                                         // Fallback to pattern matching
-                                        def errorMsg = e.getMessage().toLowerCase()
+                                        def errorMsg = errorReason.toLowerCase()
                                         // Generate simple fix based on error pattern
                                         if (errorMsg.contains('namespace') && errorMsg.contains('not found')) {
                                             env.AI_FIX = "Namespace '${params.NAMESPACE}' not found. Fix: kubectl create namespace ${params.NAMESPACE}"
@@ -509,8 +507,8 @@ spec:
 └────────────────────────────────────────────────────────────────────────────────┘
 """
                                     }
-                                } else {
-                                    // AI analysis disabled - use pattern matching for fix
+                                } catch (Exception aiError) {
+                                    // AI failed - use pattern matching fallback
                                     def errorMsg = errorReason.toLowerCase()
                                     def manualFix = ""
                                     if (errorMsg.contains('namespace') && (errorMsg.contains('not found') || errorMsg.contains('does not exist'))) {
@@ -659,8 +657,8 @@ spec:
                                     additionalContext = "Context unavailable: ${ex.getMessage()}"
                                 }
 
-                                // Try to get AI-powered solution from Gemini
-                                if (params.ENABLE_AI_ANALYSIS) {
+                                // Get AI-powered solution from Gemini (always enabled)
+                                try {
                                     // echo "\n🤖 GETTING AI-POWERED SOLUTION FROM GEMINI..." // Suppressed - show in final summary
                                     try {
                                         def aiSolution = getAISolution(errorReason, additionalContext)
@@ -682,9 +680,10 @@ spec:
 """
                                     } catch (Exception aiError) {
                                         // AI failed, use fallback fix
+                                        echo "🔍 DEBUG: AI Analysis failed: ${aiError.getMessage()}"
                                         
                                         // Fallback to pattern matching
-                                        def errorMsg = e.getMessage().toLowerCase()
+                                        def errorMsg = errorReason.toLowerCase()
                                         // Generate simple fix based on error pattern
                                         if (errorMsg.contains('namespace') && errorMsg.contains('not found')) {
                                             env.AI_FIX = "Namespace '${params.NAMESPACE}' not found. Fix: kubectl create namespace ${params.NAMESPACE}"
@@ -715,8 +714,8 @@ spec:
 └────────────────────────────────────────────────────────────────────────────────┘
 """
                                     }
-                                } else {
-                                    // AI analysis disabled - use pattern matching for fix
+                                } catch (Exception aiError) {
+                                    // AI failed - use pattern matching fallback
                                     def errorMsg = errorReason.toLowerCase()
                                     def manualFix = ""
                                     if (errorMsg.contains('namespace') && (errorMsg.contains('not found') || errorMsg.contains('does not exist'))) {
