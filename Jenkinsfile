@@ -32,14 +32,11 @@ properties([
 ])
 
 // AI Analysis Functions - Must be defined before podTemplate block
-def getAISolution(String errorMessage, String context) {
-    try {
-        withCredentials([string(credentialsId: 'gemini-api-key', variable: 'GEMINI_API_KEY')]) {
-            return getGeminiSolution(errorMessage, context, GEMINI_API_KEY)
-        }
-    } catch (Exception e) {
+def getAISolution(String errorMessage, String context, String apiKey = null) {
+    if (apiKey == null) {
         throw new Exception("AI Analysis requires 'gemini-api-key' credential. Add it in Jenkins: Manage Jenkins > Credentials > Add Secret Text with ID 'gemini-api-key'")
     }
+    return getGeminiSolution(errorMessage, context, apiKey)
 }
 
 def getGeminiSolution(String errorMessage, String context, String apiKey) {
@@ -276,7 +273,10 @@ spec:
                         if (params.ENABLE_AI_ANALYSIS) {
                             try {
                                 echo "\n🤖 Getting AWS troubleshooting advice from Gemini AI..."
-                                def aiSolution = getAISolution(e.getMessage(), awsContext)
+                                def aiSolution = null
+                                withCredentials([string(credentialsId: 'gemini-api-key', variable: 'GEMINI_API_KEY')]) {
+                                    aiSolution = getAISolution(e.getMessage(), awsContext, GEMINI_API_KEY)
+                                }
                                 echo "🧠 GEMINI AI SOLUTION:\n${aiSolution}"
                             } catch (Exception aiError) {
                                 echo "⚠️ AI analysis failed: ${aiError.getMessage()}"
@@ -329,7 +329,10 @@ spec:
                         if (params.ENABLE_AI_ANALYSIS) {
                             try {
                                 echo "\n🤖 Getting GCP troubleshooting advice from Gemini AI..."
-                                def aiSolution = getAISolution(e.getMessage(), gcpContext)
+                                def aiSolution = null
+                                withCredentials([string(credentialsId: 'gemini-api-key', variable: 'GEMINI_API_KEY')]) {
+                                    aiSolution = getAISolution(e.getMessage(), gcpContext, GEMINI_API_KEY)
+                                }
                                 echo "🧠 GEMINI AI SOLUTION:\n${aiSolution}"
                             } catch (Exception aiError) {
                                 echo "⚠️ AI analysis failed: ${aiError.getMessage()}"
@@ -455,7 +458,10 @@ spec:
                                 try {
                                     // echo "\n🤖 GETTING AI-POWERED SOLUTION FROM GEMINI..." // Suppressed - show in final summary
                                     try {
-                                        def aiSolution = getAISolution(errorReason, additionalContext)
+                                        def aiSolution = null
+                                        withCredentials([string(credentialsId: 'gemini-api-key', variable: 'GEMINI_API_KEY')]) {
+                                            aiSolution = getAISolution(errorReason, additionalContext, GEMINI_API_KEY)
+                                        }
                                         echo """
 
 ╔════════════════════════════════════════════════════════════════════════════════╗
@@ -666,7 +672,10 @@ spec:
                                 try {
                                     // echo "\n🤖 GETTING AI-POWERED SOLUTION FROM GEMINI..." // Suppressed - show in final summary
                                     try {
-                                        def aiSolution = getAISolution(errorReason, additionalContext)
+                                        def aiSolution = null
+                                        withCredentials([string(credentialsId: 'gemini-api-key', variable: 'GEMINI_API_KEY')]) {
+                                            aiSolution = getAISolution(errorReason, additionalContext, GEMINI_API_KEY)
+                                        }
                                         echo """
 
 ╔════════════════════════════════════════════════════════════════════════════════╗
