@@ -254,7 +254,7 @@ GCP GKE  │${'█' * gcpBarLength}${' ' * (40 - gcpBarLength)}│ \$${String.fo
    • Biggest cost difference: ${getCostDifferenceAnalysis(results)}
    • ${cheaperProvider} saves most on: ${getBiggestSavingsCategory(results)}
 
-⏰ ANALYSIS TIMESTAMP: ${new Date().toString()}
+⏰ Analysis completed at: ${new Date().format('yyyy-MM-dd HH:mm:ss')}
 
 ════════════════════════════════════════════════════════════════════════════════
 """
