@@ -83,7 +83,7 @@ Keep total response under 150 words. Focus on specific, actionable kubectl/bash 
 }
 EOF
         
-        RESPONSE=\$(curl -s -X POST "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}" \\
+        RESPONSE=\$(curl -s -X POST "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}" \\
         -H "Content-Type: application/json" \\
         -d @/tmp/gemini_payload.json)
         
@@ -524,11 +524,13 @@ spec:
                                     def manualFix = ""
                                     if (errorMsg.contains('namespace') && (errorMsg.contains('not found') || errorMsg.contains('does not exist') || errorMsg.contains("doesn't exist"))) {
                                         manualFix = "ROOT CAUSE: Target namespace '${params.NAMESPACE}' doesn't exist in the cluster\\nFIX: kubectl create namespace ${params.NAMESPACE}\\nPREVENTION: Always verify namespace exists before deployment"
+                                        echo "🔍 DEBUG: Matched namespace error pattern"
                                     } else if (errorMsg.contains('unauthorized') || errorMsg.contains('forbidden')) {
                                         manualFix = "ROOT CAUSE: Insufficient permissions to deploy resources\\nFIX: kubectl auth can-i create deployments -n ${params.NAMESPACE}\\nPREVENTION: Ensure service account has proper RBAC permissions"
                                     } else if (errorMsg.contains('connection refused') || errorMsg.contains('timeout')) {
                                         manualFix = "ROOT CAUSE: Cannot connect to Kubernetes API server\\nFIX: kubectl cluster-info (check connectivity)\\nPREVENTION: Verify cluster endpoint and network access"
                                     } else {
+                                        echo "🔍 DEBUG: No pattern matched, using generic fix"
                                         manualFix = "ROOT CAUSE: Deployment script failed with exit code 1\\nFIX: Check deployment manifests and cluster resources\\nPREVENTION: Validate manifests before applying"
                                     }
                                     
@@ -733,11 +735,13 @@ spec:
                                     def manualFix = ""
                                     if (errorMsg.contains('namespace') && (errorMsg.contains('not found') || errorMsg.contains('does not exist') || errorMsg.contains("doesn't exist"))) {
                                         manualFix = "ROOT CAUSE: Target namespace '${params.NAMESPACE}' doesn't exist in the cluster\\nFIX: kubectl create namespace ${params.NAMESPACE}\\nPREVENTION: Always verify namespace exists before deployment"
+                                        echo "🔍 DEBUG: Matched namespace error pattern"
                                     } else if (errorMsg.contains('unauthorized') || errorMsg.contains('forbidden')) {
                                         manualFix = "ROOT CAUSE: Insufficient permissions to deploy resources\\nFIX: kubectl auth can-i create deployments -n ${params.NAMESPACE}\\nPREVENTION: Ensure service account has proper RBAC permissions"
                                     } else if (errorMsg.contains('connection refused') || errorMsg.contains('timeout')) {
                                         manualFix = "ROOT CAUSE: Cannot connect to Kubernetes API server\\nFIX: kubectl cluster-info (check connectivity)\\nPREVENTION: Verify cluster endpoint and network access"
                                     } else {
+                                        echo "🔍 DEBUG: No pattern matched, using generic fix"
                                         manualFix = "ROOT CAUSE: Deployment script failed with exit code 1\\nFIX: Check deployment manifests and cluster resources\\nPREVENTION: Validate manifests before applying"
                                     }
                                     
