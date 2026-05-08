@@ -665,7 +665,7 @@ ${aiSolution}"""
                             kubectl delete -n ${params.NAMESPACE} -f k8s/service.yaml || true
                             """
                         }
-            }
+                    }
         }
     }
 } // end of node block
