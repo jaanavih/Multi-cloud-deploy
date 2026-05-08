@@ -743,6 +743,31 @@ ${aiSolution}"""
                     }
         }
     }
+    
+    // Final build failure summary (only shows if build failed)
+    if (env.BUILD_FAILED == 'true') {
+        stage('🚨 Build Failure Summary') {
+            container('tools') {
+                script {
+                    echo """
+╔════════════════════════════════════════════════════════════════════════════════╗
+║                            BUILD FAILURE ANALYSIS                              ║
+╚════════════════════════════════════════════════════════════════════════════════╝
+
+🚨 REASON: ${env.BUILD_ERROR ?: 'Unknown error'}
+
+📋 FAILED STAGE: ${env.BUILD_STAGE ?: 'Unknown stage'}
+
+┌────────────────────────────────────────────────────────────────────────────────┐
+│                                  AI FIX                                        │
+├────────────────────────────────────────────────────────────────────────────────┤
+│ ${env.AI_FIX ?: 'Fix unavailable'}                                            │
+└────────────────────────────────────────────────────────────────────────────────┘
+"""
+                }
+            }
+        }
+    }
 } // end of node block
 } // end of podTemplate block
 
