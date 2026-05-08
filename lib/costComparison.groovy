@@ -252,7 +252,7 @@ GCP GKE  │${'█' * gcpBarLength}${' ' * (40 - gcpBarLength)}│ \$${String.fo
 📈 COST EFFICIENCY BREAKDOWN:
    • ${cheaperProvider} is ${String.format('%.1f', savingsPercent)}% more cost-effective
    • Biggest cost difference: ${getCostDifferenceAnalysis(results)}
-   • ${cheaperProvider} saves most on: ${getBiggestSavingsCategory(results)}"""
+   • ${cheaperProvider} saves most on: ${getBiggestSavingsCategory(results)}
 
 ⏰ ANALYSIS TIMESTAMP: ${new Date().toString()}
 

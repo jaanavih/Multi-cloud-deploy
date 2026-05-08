@@ -359,14 +359,18 @@ spec:
                                 sh """
                                 echo "🔍 Pre-deployment validation..."
                                 echo "Checking if namespace '${params.NAMESPACE}' exists..."
-                                kubectl get namespace ${params.NAMESPACE} || {
-                                    echo "⚠️  Namespace '${params.NAMESPACE}' not found!"
+                                if ! kubectl get namespace ${params.NAMESPACE} >/dev/null 2>&1; then
+                                    echo "❌ ERROR: Namespace '${params.NAMESPACE}' not found!"
                                     echo "💡 Available namespaces:"
                                     kubectl get namespaces
-                                    echo "🔧 Creating namespace '${params.NAMESPACE}'..."
-                                    kubectl create namespace ${params.NAMESPACE}
-                                    echo "✅ Namespace '${params.NAMESPACE}' created successfully"
-                                }
+                                    echo ""
+                                    echo "🚨 DEPLOYMENT FAILED: Target namespace does not exist"
+                                    echo "📋 TO FIX: Create the namespace first or use an existing one:"
+                                    echo "   kubectl create namespace ${params.NAMESPACE}"
+                                    echo "   OR use an existing namespace like 'default' or 'test-app'"
+                                    exit 1
+                                fi
+                                echo "✅ Namespace '${params.NAMESPACE}' exists, proceeding with deployment"
                                 """
                                 
                                 sh """
@@ -551,14 +555,18 @@ ${aiSolution}"""
                                 sh """
                                 echo "🔍 Pre-deployment validation..."
                                 echo "Checking if namespace '${params.NAMESPACE}' exists..."
-                                kubectl get namespace ${params.NAMESPACE} || {
-                                    echo "⚠️  Namespace '${params.NAMESPACE}' not found!"
+                                if ! kubectl get namespace ${params.NAMESPACE} >/dev/null 2>&1; then
+                                    echo "❌ ERROR: Namespace '${params.NAMESPACE}' not found!"
                                     echo "💡 Available namespaces:"
                                     kubectl get namespaces
-                                    echo "🔧 Creating namespace '${params.NAMESPACE}'..."
-                                    kubectl create namespace ${params.NAMESPACE}
-                                    echo "✅ Namespace '${params.NAMESPACE}' created successfully"
-                                }
+                                    echo ""
+                                    echo "🚨 DEPLOYMENT FAILED: Target namespace does not exist"
+                                    echo "📋 TO FIX: Create the namespace first or use an existing one:"
+                                    echo "   kubectl create namespace ${params.NAMESPACE}"
+                                    echo "   OR use an existing namespace like 'default' or 'test-app'"
+                                    exit 1
+                                fi
+                                echo "✅ Namespace '${params.NAMESPACE}' exists, proceeding with deployment"
                                 """
                                 
                                 sh """
