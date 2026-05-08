@@ -398,7 +398,7 @@ spec:
                                 
                                 echo "🩺 Troubleshooting any issues..."
                                 # Check if pods are still not ready after rollout
-                                NOT_READY=\$(kubectl get pods -n ${params.NAMESPACE} -l app=hello-app --no-headers | grep -v "1/1.*Running" | wc -l)
+                                NOT_READY=\$(kubectl get pods -n ${params.NAMESPACE} -l app=hello-app --no-headers | grep -v "1/1.*Running" | grep -v "Terminating" | wc -l)
                                 if [ \$NOT_READY -gt 0 ]; then
                                     echo "⚠️  Found \$NOT_READY pods not ready. Investigating..."
                                     kubectl describe pods -n ${params.NAMESPACE} -l app=hello-app | grep -A 10 "Events:"
@@ -612,7 +612,7 @@ spec:
                                 
                                 echo "🩺 Troubleshooting any issues..."
                                 # Check if pods are still not ready after rollout
-                                NOT_READY=\$(kubectl get pods -n ${params.NAMESPACE} -l app=hello-app --no-headers | grep -v "1/1.*Running" | wc -l)
+                                NOT_READY=\$(kubectl get pods -n ${params.NAMESPACE} -l app=hello-app --no-headers | grep -v "1/1.*Running" | grep -v "Terminating" | wc -l)
                                 if [ \$NOT_READY -gt 0 ]; then
                                     echo "⚠️  Found \$NOT_READY pods not ready. Investigating..."
                                     kubectl describe pods -n ${params.NAMESPACE} -l app=hello-app | grep -A 10 "Events:"
