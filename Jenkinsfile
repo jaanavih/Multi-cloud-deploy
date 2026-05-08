@@ -348,7 +348,8 @@ spec:
     stage('Deploy/Delete Application') {
         container('tools') {
             script {
-                if (env.TARGET_CLOUD == 'aws') {
+                try {
+                    if (env.TARGET_CLOUD == 'aws') {
                     withCredentials([[
                         $class: 'AmazonWebServicesCredentialsBinding',
                         credentialsId: 'aws-creds'
@@ -480,7 +481,8 @@ spec:
                                 
                                 // Additional debugging suppressed for cleaner output
                                 
-                                throw e
+                                // Don't throw - let pipeline continue to summary stage
+                                currentBuild.result = 'FAILURE'
                             }
                         }
                         if (params.ACTION == 'delete') {
@@ -621,7 +623,8 @@ spec:
                                 
                                 // Additional debugging suppressed for cleaner output
                                 
-                                throw e
+                                // Don't throw - let pipeline continue to summary stage
+                                currentBuild.result = 'FAILURE'
                             }
                         }
                         if (params.ACTION == 'delete') {
@@ -631,10 +634,50 @@ spec:
                             """
                         }
                     }
+                } catch (Exception e) {
+                    // Handle any deployment failure
+                    env.BUILD_STAGE = 'Deploy Application'
+                    env.BUILD_ERROR = e.getMessage()
+                    env.BUILD_FAILED = 'true'
+                    
+                    // Get AI solution silently
+                    try {
+                        def additionalContext = sh(
+                            script: """
+                            echo "=== CLUSTER INFO ==="
+                            kubectl cluster-info 2>/dev/null || echo "Cluster info unavailable"
+                            echo "=== NAMESPACES ==="
+                            kubectl get namespaces 2>/dev/null || echo "Namespaces unavailable"  
+                            echo "=== EVENTS ==="
+                            kubectl get events -n ${params.NAMESPACE} --sort-by='.lastTimestamp' 2>/dev/null | tail -5 || echo "No events found"
+                            """,
+                            returnStdout: true
+                        ).trim()
+                        
+                        if (params.ENABLE_AI_ANALYSIS) {
+                            env.AI_FIX = getAISolution(e.getMessage(), additionalContext)
+                        } else {
+                            // Simple pattern matching for fix
+                            def errorMsg = e.getMessage().toLowerCase()
+                            if (errorMsg.contains('namespace') && errorMsg.contains('not found')) {
+                                env.AI_FIX = "Namespace '${params.NAMESPACE}' not found. Fix: kubectl create namespace ${params.NAMESPACE}"
+                            } else if (errorMsg.contains('unauthorized') || errorMsg.contains('forbidden')) {
+                                env.AI_FIX = "Permission denied. Fix: Check RBAC policies and service account permissions"
+                            } else {
+                                env.AI_FIX = "Deployment failed. Fix: Check logs above for specific error details"
+                            }
+                        }
+                    } catch (Exception aiError) {
+                        env.AI_FIX = "Analysis failed. Check deployment manifests and cluster connectivity"
+                    }
+                    
+                    // Mark build as failed but continue to summary
+                    currentBuild.result = 'FAILURE'
+                }
         }
     }
-    
-    // Final build failure summary (only shows if build failed)
+} // end of node block
+    // Final build failure summary - runs at end regardless of success/failure
     if (env.BUILD_FAILED == 'true') {
         stage('🚨 Build Failure Summary') {
             container('tools') {
@@ -646,12 +689,12 @@ spec:
 
 🚨 REASON: ${env.BUILD_ERROR ?: 'Unknown error'}
 
-📋 FAILED STAGE: ${env.BUILD_STAGE ?: 'Unknown stage'}
+📋 FAILED STAGE: ${env.BUILD_STAGE ?: 'Unknown stage'}  
 
 ┌────────────────────────────────────────────────────────────────────────────────┐
 │                                  AI FIX                                        │
 ├────────────────────────────────────────────────────────────────────────────────┤
-│ ${env.AI_FIX ?: 'Fix unavailable'}                                            │
+│ ${env.AI_FIX ?: 'Fix unavailable - enable AI analysis for smart solutions'}   │
 └────────────────────────────────────────────────────────────────────────────────┘
 """
                 }
