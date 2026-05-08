@@ -38,7 +38,7 @@ def getAISolution(String errorMessage, String context) {
             return getGeminiSolution(errorMessage, context, env.GEMINI_API_KEY)
         }
     } catch (Exception e) {
-        throw new Exception("Credentials 'gemini-api-key' not found. Please add your Gemini API key to Jenkins credentials with ID 'gemini-api-key'")
+        throw new Exception("AI Analysis requires 'gemini-api-key' credential. Add it in Jenkins: Manage Jenkins > Credentials > Add Secret Text with ID 'gemini-api-key'")
     }
 }
 
@@ -68,24 +68,33 @@ Keep total response under 150 words. Focus on specific, actionable kubectl/bash 
 
     def response = sh(
         script: """
+        # Create properly escaped JSON payload
+        cat > /tmp/gemini_payload.json << 'EOF'
+{
+    "contents": [{
+        "parts": [{
+            "text": "${prompt.replace('"', '\\"').replace('\n', '\\n').replace('\\', '\\\\').replace('\r', '')}"
+        }]
+    }],
+    "generationConfig": {
+        "maxOutputTokens": 300,
+        "temperature": 0.1
+    }
+}
+EOF
+        
         RESPONSE=\$(curl -s -X POST "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}" \\
         -H "Content-Type: application/json" \\
-        -d '{
-            "contents": [{
-                "parts": [{
-                    "text": "${prompt.replace('"', '\\"').replace('\n', '\\n')}"
-                }]
-            }],
-            "generationConfig": {
-                "maxOutputTokens": 300,
-                "temperature": 0.1
-            }
-        }')
+        -d @/tmp/gemini_payload.json)
         
         echo "DEBUG: Raw API Response: \$RESPONSE" >&2
         
         AI_TEXT=\$(echo "\$RESPONSE" | jq -r '.candidates[0].content.parts[0].text // "AI analysis unavailable"')
         echo "DEBUG: Extracted AI Text: \$AI_TEXT" >&2
+        
+        # Clean up temp file
+        rm -f /tmp/gemini_payload.json
+        
         echo "\$AI_TEXT"
         """,
         returnStdout: true
@@ -510,8 +519,10 @@ spec:
                                 } catch (Exception aiError) {
                                     // AI failed - use pattern matching fallback
                                     def errorMsg = errorReason.toLowerCase()
+                                    echo "🔍 DEBUG: Fallback pattern matching for: '${errorReason}'"
+                                    echo "🔍 DEBUG: Lowercase version: '${errorMsg}'"
                                     def manualFix = ""
-                                    if (errorMsg.contains('namespace') && (errorMsg.contains('not found') || errorMsg.contains('does not exist'))) {
+                                    if (errorMsg.contains('namespace') && (errorMsg.contains('not found') || errorMsg.contains('does not exist') || errorMsg.contains('doesn\\'t exist'))) {
                                         manualFix = "ROOT CAUSE: Target namespace '${params.NAMESPACE}' doesn't exist in the cluster\\nFIX: kubectl create namespace ${params.NAMESPACE}\\nPREVENTION: Always verify namespace exists before deployment"
                                     } else if (errorMsg.contains('unauthorized') || errorMsg.contains('forbidden')) {
                                         manualFix = "ROOT CAUSE: Insufficient permissions to deploy resources\\nFIX: kubectl auth can-i create deployments -n ${params.NAMESPACE}\\nPREVENTION: Ensure service account has proper RBAC permissions"
@@ -717,8 +728,10 @@ spec:
                                 } catch (Exception aiError) {
                                     // AI failed - use pattern matching fallback
                                     def errorMsg = errorReason.toLowerCase()
+                                    echo "🔍 DEBUG: Fallback pattern matching for: '${errorReason}'"
+                                    echo "🔍 DEBUG: Lowercase version: '${errorMsg}'"
                                     def manualFix = ""
-                                    if (errorMsg.contains('namespace') && (errorMsg.contains('not found') || errorMsg.contains('does not exist'))) {
+                                    if (errorMsg.contains('namespace') && (errorMsg.contains('not found') || errorMsg.contains('does not exist') || errorMsg.contains('doesn\\'t exist'))) {
                                         manualFix = "ROOT CAUSE: Target namespace '${params.NAMESPACE}' doesn't exist in the cluster\\nFIX: kubectl create namespace ${params.NAMESPACE}\\nPREVENTION: Always verify namespace exists before deployment"
                                     } else if (errorMsg.contains('unauthorized') || errorMsg.contains('forbidden')) {
                                         manualFix = "ROOT CAUSE: Insufficient permissions to deploy resources\\nFIX: kubectl auth can-i create deployments -n ${params.NAMESPACE}\\nPREVENTION: Ensure service account has proper RBAC permissions"
