@@ -72,8 +72,16 @@ EOF
         
         echo "DEBUG: Raw API Response: \$RESPONSE" >&2
         
-        # Extract AI text using grep and sed (no jq dependency)
-        AI_TEXT=\$(echo "\$RESPONSE" | grep -o '"text"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | sed 's/.*"text"[[:space:]]*:[[:space:]]*"\\([^"]*\\)".*/\\1/' || echo "AI analysis unavailable")
+        # Extract AI text using Python (more reliable than regex for JSON)
+        AI_TEXT=\$(python3 -c "
+import json, sys
+try:
+    data = json.loads('''\\$RESPONSE''')
+    text = data['candidates'][0]['content']['parts'][0]['text']
+    print(text.replace('\\n', ' ').strip())
+except:
+    print('AI analysis unavailable')
+")
         echo "DEBUG: Extracted AI Text: \$AI_TEXT" >&2
         
         # Clean up temp file
