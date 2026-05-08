@@ -55,10 +55,10 @@ spec:
       tty: true
 '''
 ) {
-
-    stage('Checkout') {
-        checkout scm
-    }
+    node {
+        stage('Checkout') {
+            checkout scm
+        }
 
     stage('💰 Cost comparison (+ optional AI)') {
         container('tools') {
@@ -670,6 +670,7 @@ ${aiSolution}"""
             }
         }
     }
+    } // end of node block
 } // end of podTemplate block
 
 // Functions are defined outside the podTemplate block
